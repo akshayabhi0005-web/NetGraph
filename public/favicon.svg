@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none">
+  <defs>
+    <linearGradient id="netgraph-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4F46E5" />
+      <stop offset="100%" stop-color="#3B82F6" />
+    </linearGradient>
+  </defs>
+  <rect width="48" height="48" rx="12" fill="url(#netgraph-grad)"/>
+  <!-- Network Graph N Nodes and Links -->
+  <line x1="15" y1="33" x2="15" y2="15" stroke="white" stroke-width="3" stroke-linecap="round" opacity="0.9"/>
+  <line x1="15" y1="15" x2="33" y2="33" stroke="white" stroke-width="3.2" stroke-linecap="round" opacity="0.95"/>
+  <line x1="33" y1="33" x2="33" y2="15" stroke="white" stroke-width="3" stroke-linecap="round" opacity="0.9"/>
+  <!-- Glowing graph vertices -->
+  <circle cx="15" cy="15" r="3.5" fill="#93C5FD" stroke="#ffffff" stroke-width="1.5"/>
+  <circle cx="33" cy="15" r="3.5" fill="#93C5FD" stroke="#ffffff" stroke-width="1.5"/>
+  <circle cx="24" cy="24" r="3" fill="#60A5FA" stroke="#ffffff" stroke-width="1.5"/>
+  <circle cx="15" cy="33" r="3.5" fill="#93C5FD" stroke="#ffffff" stroke-width="1.5"/>
+  <circle cx="33" cy="33" r="3.5" fill="#93C5FD" stroke="#ffffff" stroke-width="1.5"/>
+</svg>
