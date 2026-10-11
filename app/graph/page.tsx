@@ -13,7 +13,7 @@ export default function Graph() {
         </p>
 
         <div className="mt-8">
-          <NetgraphHero className="relative h-[500px] w-full overflow-hidden rounded-[28px] border border-indigo-100/80 bg-[radial-gradient(circle_at_50%_40%,#eef2ff_0%,#eaf4ff_38%,#f8fafc_78%)] shadow-[0_24px_80px_rgba(79,70,229,0.14)] md:h-[600px]" />
+          <NetgraphHero className="relative h-[520px] w-full overflow-hidden rounded-3xl border border-border/70 bg-card/50 shadow-sm md:h-[640px]" />
         </div>
       </div>
     </AppShell>
