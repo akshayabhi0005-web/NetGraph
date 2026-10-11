@@ -62,15 +62,15 @@ export default function Page() {
       </div>}
     </nav>
 
-    <section className="relative mx-auto grid max-w-7xl items-center gap-10 px-5 pb-20 pt-12 lg:grid-cols-[0.85fr_1.15fr] lg:gap-10 xl:gap-14 lg:px-8 lg:pb-28 lg:pt-16 overflow-visible">
-      <div className="relative z-10">
+    <section className="relative mx-auto grid max-w-[1536px] items-center gap-8 px-5 pb-16 pt-8 lg:grid-cols-[0.8fr_1.2fr] lg:gap-8 lg:px-8 lg:pb-20 lg:pt-12 xl:px-12 overflow-visible">
+      <div className="relative z-10 max-w-xl">
         <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .5 }}><Badge variant="secondary" className="mb-6 rounded-full border border-indigo-100 bg-primary/10 px-3 py-1.5 text-indigo-700"><Sparkles className="mr-1.5 size-3.5" /> Career intelligence, mapped</Badge><h1 className="max-w-xl text-[clamp(3.25rem,7vw,6.4rem)] font-semibold leading-[0.94] tracking-[-0.075em] text-foreground">Find the thread between <span className="text-indigo-600">what you know</span> and what&apos;s next.</h1><p className="mt-7 max-w-lg text-lg leading-8 text-muted-foreground">NETGRAPH explores the relationships between your skills, projects, technologies, and career opportunities — so your next move feels less like a guess.</p><div className="mt-9 flex flex-wrap items-center gap-3">
           <Button asChild size="lg" className="rounded-full bg-slate-950 px-6 hover:bg-indigo-700 text-white">
             <Link href={isAuthenticated ? "/dashboard" : "/signup"}>{isAuthenticated ? "Go to workspace" : "Build your profile"} <ArrowRight data-icon="inline-end" /></Link>
           </Button>
           <a href="#how-it-works" className="group flex items-center gap-2 px-3 text-sm font-semibold text-slate-600">See how it works <ChevronRight className="size-4 transition group-hover:translate-x-1" /></a></div><p className="mt-6 text-xs font-medium text-slate-400">Start with your profile. Explore insights when your analysis is ready.</p></motion.div>
       </div>
-      <motion.div initial={{ opacity: 0, scale: .98 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: .7, delay: .15 }} className="relative h-[480px] w-full overflow-visible sm:h-[580px] lg:h-[700px] pointer-events-auto"><NetgraphHero className="h-full w-full overflow-visible" /></motion.div>
+      <motion.div initial={{ opacity: 0, scale: .98 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: .7, delay: .15 }} className="relative h-[520px] w-full overflow-visible sm:h-[640px] lg:h-[780px] xl:h-[840px] pointer-events-auto"><NetgraphHero className="h-full w-full overflow-visible" /></motion.div>
     </section>
 
     <section className="border-y border-border/80 bg-card/80"><div className="mx-auto grid max-w-7xl gap-5 px-5 py-7 text-sm text-muted-foreground sm:grid-cols-3 lg:px-8"><div className="flex items-center gap-3"><CircleCheck className="size-4 text-indigo-500" /> Transparent sample logic</div><div className="flex items-center gap-3"><CircleCheck className="size-4 text-indigo-500" /> Built for curious builders</div><div className="flex items-center gap-3"><CircleCheck className="size-4 text-indigo-500" /> No promises, just clarity</div></div></section>
