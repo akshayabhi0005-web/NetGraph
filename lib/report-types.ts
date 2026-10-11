@@ -79,13 +79,57 @@ export interface ReportLimitationsSection {
   isSufficientData: boolean
 }
 
+export interface ReportExecutiveSummarySection {
+  summary: string
+  strengths: string[]
+  improvementAreas: string[]
+}
+
+export interface ReportProjectRelationshipsSection {
+  projectTechAssociations: {
+    projectTitle: string
+    technologies: string[]
+    description?: string
+  }[]
+  repeatedSkills: {
+    skill: string
+    count: number
+    sources: string[]
+  }[]
+  graphFindings: string[]
+}
+
+export interface ReportActionPlanSection {
+  prioritizedSteps: {
+    title: string
+    description: string
+    priority: 'high' | 'medium' | 'low'
+    timeframe: string
+  }[]
+  skillsToImprove: {
+    skill: string
+    targetRole: string
+    reason: string
+    action: string
+  }[]
+  recommendedProjects: {
+    title: string
+    technologies: string[]
+    purpose: string
+  }[]
+  careerPreparationActions: string[]
+}
+
 export interface CareerIntelligenceReport {
   metadata: ReportMetadata
+  executiveSummary: ReportExecutiveSummarySection
   profile: ReportProfileSection
   skills: ReportSkillsSection
   careerMatches: ReportCareerMatchesSection
   skillGaps: ReportSkillGapsSection
+  projectRelationships: ReportProjectRelationshipsSection
   relationships: ReportRelationshipsSection
+  actionPlan: ReportActionPlanSection
   analytics: ReportAnalyticsSection
   limitations: ReportLimitationsSection
 }

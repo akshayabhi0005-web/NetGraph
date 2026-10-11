@@ -132,10 +132,81 @@ export function createReportPdfDocument(report: CareerIntelligenceReport): jsPDF
   cursorY += 46
 
   // ==========================================
+  // 1. EXECUTIVE SUMMARY SECTION
+  // ==========================================
+  drawSectionHeader(
+    '1. Executive Summary',
+    'Synthesized assessment of current profile alignment, primary technical strengths, and high-impact areas for growth.'
+  )
+
+  checkPageBreak(30)
+  doc.setFillColor(...COLOR_BG_LIGHT)
+  doc.setDrawColor(...COLOR_BORDER)
+  doc.setLineWidth(0.3)
+  doc.roundedRect(marginX, cursorY, contentWidth, 24, 2, 2, 'FD')
+
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(8)
+  doc.setTextColor(...COLOR_DARK)
+  const execSummaryLines = doc.splitTextToSize(report.executiveSummary.summary, contentWidth - 8)
+  doc.text(execSummaryLines.slice(0, 4), marginX + 4, cursorY + 5)
+  cursorY += 28
+
+  // Strengths & Improvement Areas
+  if (report.executiveSummary.strengths.length > 0 || report.executiveSummary.improvementAreas.length > 0) {
+    checkPageBreak(32)
+    const colWidth = (contentWidth - 4) / 2
+
+    // Strengths Box
+    doc.setFillColor(240, 253, 244)
+    doc.setDrawColor(187, 247, 208)
+    doc.setLineWidth(0.2)
+    doc.roundedRect(marginX, cursorY, colWidth, 30, 1.5, 1.5, 'FD')
+
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(8)
+    doc.setTextColor(...COLOR_EMERALD)
+    doc.text('Key Supported Strengths', marginX + 4, cursorY + 4.5)
+
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(7)
+    doc.setTextColor(...COLOR_DARK)
+    let sY = cursorY + 9
+    for (const str of report.executiveSummary.strengths.slice(0, 3)) {
+      const sLines = doc.splitTextToSize(`• ${str}`, colWidth - 8)
+      doc.text(sLines.slice(0, 2), marginX + 4, sY)
+      sY += sLines.slice(0, 2).length * 3.2 + 1
+    }
+
+    // Improvement Areas Box
+    const col2X = marginX + colWidth + 4
+    doc.setFillColor(...COLOR_ROSE_BG)
+    doc.setDrawColor(...COLOR_ROSE_BORDER)
+    doc.roundedRect(col2X, cursorY, colWidth, 30, 1.5, 1.5, 'FD')
+
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(8)
+    doc.setTextColor(...COLOR_ROSE)
+    doc.text('Target Improvement Opportunities', col2X + 4, cursorY + 4.5)
+
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(7)
+    doc.setTextColor(...COLOR_DARK)
+    let iY = cursorY + 9
+    for (const imp of report.executiveSummary.improvementAreas.slice(0, 3)) {
+      const iLines = doc.splitTextToSize(`• ${imp}`, colWidth - 8)
+      doc.text(iLines.slice(0, 2), col2X + 4, iY)
+      iY += iLines.slice(0, 2).length * 3.2 + 1
+    }
+
+    cursorY += 34
+  }
+
+  // ==========================================
   // 2. PROFESSIONAL PROFILE SECTION
   // ==========================================
   drawSectionHeader(
-    '1. Professional Profile',
+    '2. Profile Overview',
     'Current experience, projects, education, and credentials extracted from your verified profile.'
   )
 
@@ -293,10 +364,10 @@ export function createReportPdfDocument(report: CareerIntelligenceReport): jsPDF
   cursorY += 3
 
   // ==========================================
-  // 3. TECHNICAL SKILLS SECTION
+  // 3. TECHNICAL SKILLS ANALYSIS SECTION
   // ==========================================
   drawSectionHeader(
-    '2. Technical Skills Inventory',
+    '3. Skill Analysis',
     `Identified ${report.skills.totalSkills} skills categorized by domain and reported proficiency.`
   )
 
@@ -328,10 +399,10 @@ export function createReportPdfDocument(report: CareerIntelligenceReport): jsPDF
   cursorY += 2
 
   // ==========================================
-  // 4. CAREER MATCH ANALYSIS SECTION
+  // 4. CAREER ROLE MATCH ANALYSIS SECTION
   // ==========================================
   drawSectionHeader(
-    '3. Career Role Match Analysis',
+    '4. Career Role Matching',
     'Weighted coverage analysis comparing your skills against standard industry target role benchmarks.'
   )
 
@@ -405,7 +476,7 @@ export function createReportPdfDocument(report: CareerIntelligenceReport): jsPDF
   // 5. SKILL GAP ANALYSIS
   // ==========================================
   drawSectionHeader(
-    '4. Skill Gap Analysis & Learning Priorities',
+    '5. Skill Gap Analysis',
     'High and medium priority capabilities identified to bridge the distance to target positions.'
   )
 
@@ -445,10 +516,61 @@ export function createReportPdfDocument(report: CareerIntelligenceReport): jsPDF
   cursorY += 2
 
   // ==========================================
-  // 6. SKILL RELATIONSHIPS (ASSOCIATION RULES)
+  // 6. PROJECT & TECHNOLOGY RELATIONSHIPS
   // ==========================================
   drawSectionHeader(
-    '5. Data-Mined Skill Relationships',
+    '6. Project and Technology Relationships',
+    'Technologies associated with projects, repeated cross-functional skills, and network topology findings.'
+  )
+
+  if (report.projectRelationships.projectTechAssociations.length === 0) {
+    doc.setFont('helvetica', 'italic')
+    doc.setFontSize(8.5)
+    doc.setTextColor(...COLOR_MUTED)
+    doc.text('No project technology associations currently documented.', marginX, cursorY)
+    cursorY += 8
+  } else {
+    for (const assoc of report.projectRelationships.projectTechAssociations.slice(0, 4)) {
+      checkPageBreak(14)
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(8)
+      doc.setTextColor(...COLOR_DARK)
+      doc.text(`• ${assoc.projectTitle}`, marginX + 2, cursorY + 3.5)
+
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(7.5)
+      doc.setTextColor(...COLOR_PRIMARY)
+      const techStr = assoc.technologies.join(', ') || 'None specified'
+      doc.text(`Technologies: ${techStr}`, marginX + 6, cursorY + 7.5)
+      cursorY += 10
+    }
+
+    if (report.projectRelationships.repeatedSkills.length > 0) {
+      checkPageBreak(14)
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(8)
+      doc.setTextColor(...COLOR_DARK)
+      doc.text('Anchor Skills Repeated Across Portfolio:', marginX + 2, cursorY + 3.5)
+      cursorY += 6
+
+      const repStr = report.projectRelationships.repeatedSkills
+        .map((r) => `${r.skill} (${r.count}x)`)
+        .join('  •  ')
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(7.5)
+      doc.setTextColor(...COLOR_MUTED)
+      doc.text(repStr, marginX + 4, cursorY + 2)
+      cursorY += 6
+    }
+  }
+
+  cursorY += 2
+
+  // ==========================================
+  // 7. ASSOCIATION RULE FINDINGS
+  // ==========================================
+  drawSectionHeader(
+    '7. Association Rule Findings',
     'Pattern-mining co-occurrences discovered across projects and work experiences.'
   )
 
@@ -496,98 +618,83 @@ export function createReportPdfDocument(report: CareerIntelligenceReport): jsPDF
       doc.line(marginX, cursorY + 5, pageWidth - marginX, cursorY + 5)
       cursorY += 6.5
     }
+
+    // Explanation Note for Metrics
+    checkPageBreak(12)
+    doc.setFont('helvetica', 'italic')
+    doc.setFontSize(6.5)
+    doc.setTextColor(...COLOR_MUTED)
+    doc.text(
+      '* Support = transaction co-occurrence frequency; Confidence = conditional probability; Lift > 1.0 indicates positive correlation.',
+      marginX + 2,
+      cursorY + 3.5
+    )
+    cursorY += 6
   }
 
   cursorY += 2
 
   // ==========================================
-  // 7. ANALYTICS & SUMMARY METRICS
+  // 8. ACTION PLAN SECTION
   // ==========================================
   drawSectionHeader(
-    '6. Analytics Summary',
-    'Verified counts and distribution across your career portfolio sources.'
+    '8. Action Plan & Next Steps',
+    'Prioritized sequence of career development actions, capability enhancements, and portfolio targets.'
   )
 
-  checkPageBreak(18)
-  const metricBoxWidth = (contentWidth - 6) / 4
-  const metricItems = [
-    { label: 'Total Skills', value: report.analytics.totalSkills },
-    { label: 'Portfolio Transactions', value: report.analytics.totalTransactions },
-    { label: 'Verified Projects', value: report.analytics.totalProjects },
-    { label: 'Roles Evaluated', value: report.careerMatches.totalMatchesEvaluated },
-  ]
-
-  metricItems.forEach((m, idx) => {
-    const boxX = marginX + idx * (metricBoxWidth + 2)
+  for (const step of report.actionPlan.prioritizedSteps) {
+    checkPageBreak(14)
     doc.setFillColor(...COLOR_BG_LIGHT)
     doc.setDrawColor(...COLOR_BORDER)
     doc.setLineWidth(0.2)
-    doc.roundedRect(boxX, cursorY, metricBoxWidth, 14, 1.5, 1.5, 'FD')
+    doc.roundedRect(marginX, cursorY, contentWidth, 12, 1.5, 1.5, 'FD')
 
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(11)
-    doc.setTextColor(...COLOR_PRIMARY)
-    doc.text(String(m.value), boxX + metricBoxWidth / 2, cursorY + 6.5, { align: 'center' })
-
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(6.5)
-    doc.setTextColor(...COLOR_MUTED)
-    doc.text(m.label, boxX + metricBoxWidth / 2, cursorY + 11, { align: 'center' })
-  })
-
-  cursorY += 19
-
-  // Category Distribution
-  if (report.analytics.categoryDistribution.length > 0) {
-    checkPageBreak(14)
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(8)
-    doc.setTextColor(...COLOR_DARK)
-    doc.text('Skill Category Distribution:', marginX, cursorY)
-    cursorY += 3.5
+    doc.setTextColor(step.priority === 'high' ? COLOR_ROSE[0] : COLOR_PRIMARY[0], step.priority === 'high' ? COLOR_ROSE[1] : COLOR_PRIMARY[1], step.priority === 'high' ? COLOR_ROSE[2] : COLOR_PRIMARY[2])
+    doc.text(`[${step.priority.toUpperCase()} - ${step.timeframe}] ${step.title}`, marginX + 4, cursorY + 4.5)
 
-    const distStrings = report.analytics.categoryDistribution
-      .map((c) => `${c.category}: ${c.count} (${c.percentage}%)`)
-      .join('  •  ')
     doc.setFont('helvetica', 'normal')
-    doc.setFontSize(7.5)
-    doc.setTextColor(...COLOR_MUTED)
-    const distLines = doc.splitTextToSize(distStrings, contentWidth)
-    doc.text(distLines, marginX, cursorY)
-    cursorY += distLines.length * 3.5 + 4
+    doc.setFontSize(7)
+    doc.setTextColor(...COLOR_DARK)
+    const descShort = doc.splitTextToSize(step.description, contentWidth - 8)[0] || ''
+    doc.text(descShort, marginX + 4, cursorY + 9)
+    cursorY += 15
   }
 
+  cursorY += 2
+
   // ==========================================
-  // 8. DATA LIMITATIONS & METHODOLOGY
+  // 9. DATA LIMITATIONS & METHODOLOGY
   // ==========================================
   drawSectionHeader(
-    '7. Data Limitations & Methodology',
-    'Transparent disclosure of heuristics and dataset constraints.'
+    '9. Methodology and Limitations',
+    'Transparent disclosure of heuristics, mining algorithms, and dataset constraints.'
   )
 
   checkPageBreak(24)
   doc.setFillColor(...COLOR_BG_LIGHT)
   doc.setDrawColor(...COLOR_BORDER)
   doc.setLineWidth(0.2)
-  doc.roundedRect(marginX, cursorY, contentWidth, 22, 2, 2, 'FD')
+  doc.roundedRect(marginX, cursorY, contentWidth, 24, 2, 2, 'FD')
 
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(7.5)
   doc.setTextColor(...COLOR_DARK)
-  doc.text('Methodology Notice:', marginX + 4, cursorY + 5)
+  doc.text('Methodology & Algorithm Disclosure:', marginX + 4, cursorY + 5)
 
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(7)
   doc.setTextColor(...COLOR_MUTED)
   const methodologyText =
-    'This report is generated by the NETGRAPH data-mining prototype using transparent co-occurrence counting, support/confidence association rules, and weighted requirement coverage. It is an exploratory decision aid and does not constitute a guaranteed commercial employment prediction.'
+    'This report is generated by NETGRAPH using transparent co-occurrence transaction counting, Apriori support/confidence association rules, and deterministic weighted requirement coverage matching. Analyzed profile data includes explicit skills, projects, and work history. It represents an exploratory planning heuristic and does not guarantee commercial employment outcomes.'
   const methodLines = doc.splitTextToSize(methodologyText, contentWidth - 8)
   doc.text(methodLines, marginX + 4, cursorY + 9)
 
   if (report.limitations.warnings.length > 0) {
     doc.setFont('helvetica', 'italic')
     doc.setTextColor(...COLOR_ROSE)
-    doc.text(`Quality Warnings: ${report.limitations.warnings.join(' ')}`, marginX + 4, cursorY + 18)
+    doc.text(`Quality Warnings: ${report.limitations.warnings.join(' ')}`, marginX + 4, cursorY + 20)
   }
 
   // ==========================================

@@ -236,6 +236,26 @@ runTest('15. Empty profile PDF generates cleanly without crashing', () => {
   assert.ok(header.startsWith('%PDF-'))
 })
 
+// 16. Verify all 9 sections populated for comprehensive profile
+runTest('16. Populated profile derives executiveSummary, projectRelationships, and actionPlan', () => {
+  const analysis = mineUserProfile(DEFAULT_DEMO_USER)
+  const report = buildCareerIntelligenceReport(DEFAULT_DEMO_USER, analysis)
+
+  assert.ok(report.executiveSummary.summary.length > 0)
+  assert.ok(report.executiveSummary.strengths.length > 0)
+  assert.ok(report.executiveSummary.improvementAreas.length > 0)
+
+  assert.ok(Array.isArray(report.projectRelationships.projectTechAssociations))
+  assert.ok(report.projectRelationships.projectTechAssociations.length > 0)
+  assert.ok(Array.isArray(report.projectRelationships.repeatedSkills))
+  assert.ok(Array.isArray(report.projectRelationships.graphFindings))
+
+  assert.ok(Array.isArray(report.actionPlan.prioritizedSteps))
+  assert.ok(report.actionPlan.prioritizedSteps.length > 0)
+  assert.ok(Array.isArray(report.actionPlan.skillsToImprove))
+  assert.ok(Array.isArray(report.actionPlan.recommendedProjects))
+})
+
 console.log('\n======================================================')
 console.log(`TEST SUMMARY: ${passedCount} PASSED, ${failedCount} FAILED`)
 console.log('======================================================\n')

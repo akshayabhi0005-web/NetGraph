@@ -145,7 +145,32 @@ export function generateGraphData(
         label: `${edu.degree || 'Degree'} (${edu.institution})`,
         type: 'education',
         evidence: `Academic program at ${edu.institution} in ${edu.fieldOfStudy || 'Field'}.`,
+        metadata: {
+          institution: edu.institution,
+          degree: edu.degree,
+          fieldOfStudy: edu.fieldOfStudy,
+          graduationYear: edu.graduationYear,
+        },
       })
+
+      // Connect education to skills mentioned in coursework
+      if (edu.coursework) {
+        const courses = edu.coursework.split(/[,;\n]+/).map((c) => c.trim()).filter(Boolean)
+        for (const c of courses) {
+          const canonical = normaliseSkillName(c)
+          const targetSkillId = `skill_${canonical.toLowerCase().replace(/[^a-z0-9]/g, '_')}`
+          if (nodeMap.has(targetSkillId)) {
+            addEdge({
+              id: `edge_${eduNodeId}_${targetSkillId}`,
+              source: eduNodeId,
+              target: targetSkillId,
+              type: 'studied_in',
+              weight: 0.8,
+              evidence: `Covered in academic coursework "${c}" at ${edu.institution}.`,
+            })
+          }
+        }
+      }
     })
   }
 
@@ -159,20 +184,43 @@ export function generateGraphData(
         label: cert.name,
         type: 'certification',
         evidence: `Industry certification accredited by ${cert.issuer || 'Issuer'}.`,
+        metadata: {
+          issuer: cert.issuer,
+          issueDate: cert.issueDate,
+          credentialUrl: cert.credentialUrl,
+        },
       })
 
       // Connect certification to related skill if name directly correlates
       const canonical = normaliseSkillName(cert.name)
-      const targetSkillId = `skill_${canonical.toLowerCase().replace(/[^a-z0-9]/g, '_')}`
-      if (nodeMap.has(targetSkillId)) {
+      const directTargetSkillId = `skill_${canonical.toLowerCase().replace(/[^a-z0-9]/g, '_')}`
+      if (nodeMap.has(directTargetSkillId)) {
         addEdge({
-          id: `edge_${certNodeId}_${targetSkillId}`,
+          id: `edge_${certNodeId}_${directTargetSkillId}`,
           source: certNodeId,
-          target: targetSkillId,
+          target: directTargetSkillId,
           type: 'certified_by',
           weight: 0.85,
           evidence: `Verified credential for ${canonical}.`,
         })
+      }
+
+      // Also check if any profile skill is referenced in the certification name
+      const certLower = cert.name.toLowerCase()
+      for (const s of skills) {
+        if (s.normalisedName.length >= 3 && certLower.includes(s.normalisedName.toLowerCase())) {
+          const targetSkillId = `skill_${s.normalisedName.toLowerCase().replace(/[^a-z0-9]/g, '_')}`
+          if (nodeMap.has(targetSkillId)) {
+            addEdge({
+              id: `edge_${certNodeId}_${targetSkillId}`,
+              source: certNodeId,
+              target: targetSkillId,
+              type: 'certified_by',
+              weight: 0.85,
+              evidence: `Credential accredited by ${cert.issuer || 'Issuer'} verifies proficiency in ${s.normalisedName}.`,
+            })
+          }
+        }
       }
     })
   }

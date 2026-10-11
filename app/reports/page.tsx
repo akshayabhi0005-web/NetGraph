@@ -6,50 +6,78 @@ import { AppShell } from '@/components/app-shell'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { useCareerAnalysis } from '@/hooks/use-career-analysis'
-import { buildCareerIntelligenceReport, getReportPdfFilename } from '@/lib/report-generator'
+import { buildCareerIntelligenceReport } from '@/lib/report-generator'
 import { downloadReportPdf } from '@/lib/report-pdf-generator'
 import {
-  FileText,
   Download,
   RefreshCw,
   CheckCircle2,
   AlertTriangle,
   ArrowRight,
   Sparkles,
-  Layers,
   Briefcase,
   FolderGit2,
   GraduationCap,
   Award,
-  Compass,
   FileWarning,
-  Share2,
   ShieldAlert,
+  Lightbulb,
+  Check,
+  TrendingUp,
+  Info,
+  Clock,
+  BookOpen,
+  Target,
+  Calendar,
+  Layers,
 } from 'lucide-react'
 
 export default function ReportsPage() {
-  const { user, analysis, isLoading } = useCareerAnalysis()
+  const { user, analysis } = useCareerAnalysis()
   const [isGenerating, setIsGenerating] = useState(false)
   const [isDownloading, setIsDownloading] = useState(false)
   const [downloadSuccess, setDownloadSuccess] = useState<string | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [lastGeneratedAt, setLastGeneratedAt] = useState<string | null>(null)
+  const [selectedTargetRole, setSelectedTargetRole] = useState<string | null>(null)
 
   // Pure deterministic build of report data based on current profile and mining analysis
   const report = useMemo(() => {
     return buildCareerIntelligenceReport(user, analysis)
   }, [user, analysis])
 
-  const handleRegenerate = () => {
+  // Set default selected target role for skill gap analysis
+  const targetRole = useMemo(() => {
+    if (selectedTargetRole) return selectedTargetRole
+    return report.careerMatches.topMatches[0]?.roleTitle || ''
+  }, [selectedTargetRole, report.careerMatches.topMatches])
+
+  const currentRoleMatch = useMemo(() => {
+    return (
+      report.careerMatches.topMatches.find((m) => m.roleTitle === targetRole) ||
+      report.careerMatches.topMatches[0]
+    )
+  }, [report.careerMatches.topMatches, targetRole])
+
+  // Handle "Generate Report" action
+  const handleGenerateReport = async () => {
+    if (!report.metadata.hasData) {
+      setErrorMessage('Cannot generate report: Please add skills, projects, or experience to your profile first.')
+      return
+    }
+
     setIsGenerating(true)
     setErrorMessage(null)
     setDownloadSuccess(null)
-    setTimeout(() => {
-      setLastGeneratedAt(new Date().toLocaleTimeString())
-      setIsGenerating(false)
-    }, 450)
+
+    // Simulate reactive regeneration with UI feedback
+    await new Promise((resolve) => setTimeout(resolve, 500))
+
+    setLastGeneratedAt(new Date().toLocaleTimeString())
+    setIsGenerating(false)
   }
 
+  // Handle genuine downloadable PDF report
   const handleDownloadPdf = async () => {
     if (!report.metadata.hasData) {
       setErrorMessage('Cannot generate PDF: Please add skills or experience to your profile first.')
@@ -59,14 +87,14 @@ export default function ReportsPage() {
     try {
       setIsDownloading(true)
       setErrorMessage(null)
-      const filename = getReportPdfFilename(report.metadata.generatedAt)
 
-      // Allow UI thread to show loading spinner before PDF generation
+      // Allow UI thread to show loading state
       await new Promise((resolve) => setTimeout(resolve, 80))
 
-      downloadReportPdf(report, filename)
+      const pdfFilename = 'NETGRAPH_Career_Intelligence_Report.pdf'
+      downloadReportPdf(report, pdfFilename)
 
-      setDownloadSuccess(`Downloaded "${filename}" successfully!`)
+      setDownloadSuccess(`Downloaded "${pdfFilename}" successfully!`)
       setTimeout(() => setDownloadSuccess(null), 5000)
     } catch (err: unknown) {
       console.error('PDF Generation Error:', err)
@@ -79,46 +107,53 @@ export default function ReportsPage() {
   }
 
   return (
-    <AppShell title="Reports">
+    <AppShell title="Career Intelligence Reports">
       <div className="mx-auto max-w-5xl space-y-8 pb-16">
-        {/* Top Header & Actions Bar */}
+        {/* A. Reports Page Header */}
         <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
           <div>
             <Badge variant="secondary" className="rounded-full bg-indigo-50 text-indigo-700">
               <Sparkles className="size-3 mr-1" />
-              Verified Career Intelligence
+              Functional Intelligence Reporting
             </Badge>
             <h1 className="mt-3 text-3xl font-semibold tracking-[-.05em] text-foreground md:text-4xl">
-              Career Analysis Reports
+              Career Intelligence Reports
             </h1>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Extract and export your actual profile information, mined association rules, and career role matches into an authentic PDF.
+            <p className="mt-2 text-sm text-muted-foreground max-w-2xl">
+              Turn your skills, projects, and experience into actionable career insights.
             </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
             <Button
-              variant="outline"
-              onClick={handleRegenerate}
-              disabled={isGenerating}
-              className="rounded-full border-border bg-card hover:bg-muted"
+              onClick={handleGenerateReport}
+              disabled={isGenerating || !report.metadata.hasData}
+              className="rounded-full bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs cursor-pointer"
             >
               <RefreshCw className={`size-4 mr-2 ${isGenerating ? 'animate-spin' : ''}`} />
-              {isGenerating ? 'Refreshing...' : 'Regenerate'}
+              {isGenerating ? 'Generating Report...' : 'Generate Report'}
             </Button>
 
             <Button
+              variant="outline"
               onClick={handleDownloadPdf}
               disabled={isDownloading || !report.metadata.hasData}
-              className="rounded-full bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs"
+              className="rounded-full border-border bg-card hover:bg-muted cursor-pointer"
             >
               <Download className={`size-4 mr-2 ${isDownloading ? 'animate-pulse' : ''}`} />
-              {isDownloading ? 'Building PDF...' : 'Download PDF'}
+              {isDownloading ? 'Downloading PDF...' : 'Download PDF'}
             </Button>
           </div>
         </div>
 
-        {/* Success / Error Banners */}
+        {/* Feedback Messages */}
+        {lastGeneratedAt && !downloadSuccess && (
+          <div className="flex items-center gap-3 rounded-2xl border border-indigo-200 bg-indigo-50/70 p-3 text-xs font-medium text-indigo-900">
+            <CheckCircle2 className="size-4 shrink-0 text-indigo-600" />
+            <span>Report updated from current profile at {lastGeneratedAt}. Ready for review or PDF export.</span>
+          </div>
+        )}
+
         {downloadSuccess && (
           <div className="flex items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50/80 p-4 text-xs font-medium text-emerald-900 transition-all">
             <CheckCircle2 className="size-4 shrink-0 text-emerald-600" />
@@ -138,17 +173,68 @@ export default function ReportsPage() {
           <div className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50/70 p-4 text-xs text-amber-900">
             <AlertTriangle className="size-4 shrink-0 text-amber-600 mt-0.5" />
             <div>
-              <p className="font-semibold">Report Data Quality Note:</p>
-              <p className="mt-0.5 text-amber-800">
+              <p className="font-semibold text-amber-950">Report Data Quality Note:</p>
+              <p className="mt-0.5 text-amber-800 leading-relaxed">
                 {report.limitations.warnings.join(' ')}
               </p>
             </div>
           </div>
         )}
 
-        {/* Main Content Area */}
+        {/* Summary Metric Cards */}
+        {report.metadata.hasData && (
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+            <div className="rounded-2xl border border-border bg-card p-4 shadow-xs">
+              <span className="text-xs font-medium text-muted-foreground">Profile Completeness</span>
+              <p className="mt-2 text-2xl font-bold tracking-tight text-indigo-600">
+                {report.metadata.profileCompletenessScore}%
+              </p>
+              <div className="mt-2 h-1.5 w-full bg-muted rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-indigo-600 rounded-full"
+                  style={{ width: `${report.metadata.profileCompletenessScore}%` }}
+                />
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-border bg-card p-4 shadow-xs">
+              <span className="text-xs font-medium text-muted-foreground">Verified Skills</span>
+              <p className="mt-2 text-2xl font-bold tracking-tight text-slate-900">
+                {report.skills.totalSkills}
+              </p>
+              <p className="mt-1 text-[11px] text-emerald-600 font-medium">Distinct competencies</p>
+            </div>
+
+            <div className="rounded-2xl border border-border bg-card p-4 shadow-xs">
+              <span className="text-xs font-medium text-muted-foreground">Analysed Projects</span>
+              <p className="mt-2 text-2xl font-bold tracking-tight text-slate-900">
+                {report.analytics.totalProjects}
+              </p>
+              <p className="mt-1 text-[11px] text-muted-foreground">Portfolio implementations</p>
+            </div>
+
+            <div className="rounded-2xl border border-border bg-card p-4 shadow-xs">
+              <span className="text-xs font-medium text-muted-foreground">Roles Evaluated</span>
+              <p className="mt-2 text-2xl font-bold tracking-tight text-slate-900">
+                {report.careerMatches.totalMatchesEvaluated}
+              </p>
+              <p className="mt-1 text-[11px] text-muted-foreground">Industry benchmarks</p>
+            </div>
+
+            <div className="rounded-2xl border border-border bg-card p-4 shadow-xs">
+              <span className="text-xs font-medium text-muted-foreground">Skill Gaps</span>
+              <p className="mt-2 text-2xl font-bold tracking-tight text-rose-600">
+                {report.skillGaps.gaps.length}
+              </p>
+              <p className="mt-1 text-[11px] text-rose-600 font-medium">
+                {report.skillGaps.highPriorityCount} high priority
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Empty State when Profile Data is Missing */}
         {!report.metadata.hasData ? (
-          /* Empty State */
           <div className="rounded-3xl border border-dashed border-border bg-card p-12 text-center shadow-xs">
             <FileWarning className="mx-auto size-12 text-indigo-400" />
             <h2 className="mt-4 text-xl font-semibold text-foreground">
@@ -169,129 +255,159 @@ export default function ReportsPage() {
             </div>
           </div>
         ) : (
-          /* Report Preview Canvas */
-          <div className="space-y-6">
-            <div className="flex items-center justify-between border-b border-border/80 pb-3">
-              <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-                <FileText className="size-4 text-indigo-600" />
-                <span>Interactive Report Preview</span>
-                {lastGeneratedAt && (
-                  <span className="text-[11px] text-slate-400">
-                    • Refreshed at {lastGeneratedAt}
-                  </span>
-                )}
+          /* Main Structured Report Document */
+          <div className="rounded-3xl border border-border/90 bg-card p-6 shadow-sm sm:p-10 space-y-10">
+            {/* Document Header Banner */}
+            <div className="rounded-2xl bg-indigo-600 p-6 text-white shadow-md sm:p-8">
+              <div className="flex flex-col justify-between gap-6 sm:flex-row sm:items-center">
+                <div>
+                  <div className="flex items-center gap-2 text-indigo-200 text-xs font-semibold uppercase tracking-widest">
+                    <span>NETGRAPH</span>
+                    <span>•</span>
+                    <span>Career Intelligence Platform</span>
+                  </div>
+                  <h2 className="mt-2 text-2xl font-bold tracking-tight text-white sm:text-3xl">
+                    Career Intelligence & Relationship Report
+                  </h2>
+                  <p className="mt-1 text-xs text-indigo-100">
+                    Generated on {report.metadata.dateFormatted} • Report ID: {report.metadata.reportId}
+                  </p>
+                </div>
+
+                <div className="rounded-xl bg-white/10 backdrop-blur-sm p-4 border border-white/20 sm:text-right shrink-0">
+                  <p className="text-xs font-medium text-indigo-200">Candidate</p>
+                  <p className="text-base font-bold text-white">{report.metadata.userName}</p>
+                  <p className="text-xs text-indigo-100">{report.metadata.userEmail}</p>
+                  <div className="mt-2 flex items-center gap-2">
+                    <div className="h-1.5 w-24 rounded-full bg-white/30 overflow-hidden">
+                      <div
+                        className="h-full bg-white rounded-full"
+                        style={{ width: `${report.metadata.profileCompletenessScore}%` }}
+                      />
+                    </div>
+                    <span className="text-[10px] text-white font-medium">
+                      {report.metadata.profileCompletenessScore}% Complete
+                    </span>
+                  </div>
+                </div>
               </div>
-              <span className="text-xs text-muted-foreground">
-                Document ID: {report.metadata.reportId}
-              </span>
             </div>
 
-            {/* Document Card: Container styled as paper report */}
-            <div className="rounded-3xl border border-border/90 bg-card p-6 shadow-sm sm:p-10 space-y-8">
-              {/* Cover Banner */}
-              <div className="rounded-2xl bg-indigo-600 p-6 text-white shadow-md sm:p-8">
-                <div className="flex flex-col justify-between gap-6 sm:flex-row sm:items-center">
-                  <div>
-                    <div className="flex items-center gap-2 text-indigo-200 text-xs font-semibold uppercase tracking-widest">
-                      <span>NETGRAPH</span>
-                      <span>•</span>
-                      <span>Career Intelligence Platform</span>
-                    </div>
-                    <h2 className="mt-2 text-2xl font-bold tracking-tight text-white sm:text-3xl">
-                      Career Intelligence & Relationship Report
-                    </h2>
-                    <p className="mt-1 text-xs text-indigo-100">
-                      Generated on {report.metadata.dateFormatted}
-                    </p>
-                  </div>
-
-                  <div className="rounded-xl bg-white/10 backdrop-blur-sm p-4 border border-white/20 sm:text-right shrink-0">
-                    <p className="text-xs font-medium text-indigo-200">Candidate</p>
-                    <p className="text-base font-bold text-white">{report.metadata.userName}</p>
-                    <p className="text-xs text-indigo-100">{report.metadata.userEmail}</p>
-                    <div className="mt-2 flex items-center gap-2">
-                      <div className="h-1.5 w-24 rounded-full bg-white/30 overflow-hidden">
-                        <div
-                          className="h-full bg-white rounded-full"
-                          style={{ width: `${report.metadata.profileCompletenessScore}%` }}
-                        />
-                      </div>
-                      <span className="text-[10px] text-white font-medium">
-                        {report.metadata.profileCompletenessScore}% Profile
-                      </span>
-                    </div>
-                  </div>
-                </div>
+            {/* =========================================================================
+                SECTION 1: EXECUTIVE SUMMARY
+               ========================================================================= */}
+            <section className="space-y-4">
+              <div className="flex items-center gap-2 border-b border-border/80 pb-2">
+                <span className="flex size-6 items-center justify-center rounded-full bg-indigo-100 text-indigo-700 text-xs font-bold">
+                  1
+                </span>
+                <h3 className="text-lg font-semibold text-foreground">
+                  Executive Summary
+                </h3>
+                <span className="ml-auto text-xs text-muted-foreground">
+                  Candidate standing & verified competencies
+                </span>
               </div>
 
-              {/* Section 1: Professional Profile */}
-              <div className="space-y-4">
-                <div className="flex items-center gap-2 border-b border-border/80 pb-2">
-                  <span className="flex size-6 items-center justify-center rounded-full bg-indigo-100 text-indigo-700 text-xs font-bold">
-                    1
-                  </span>
-                  <h3 className="text-lg font-semibold text-foreground">
-                    Professional Profile
-                  </h3>
-                </div>
-
+              {/* Candidate Overview Card */}
+              <div className="rounded-2xl border border-border bg-muted/30 p-5 space-y-4">
                 {report.profile.headline && (
                   <p className="text-sm font-semibold text-indigo-950">
                     {report.profile.headline}
                   </p>
                 )}
 
+                <p className="text-xs text-foreground leading-relaxed">
+                  {report.executiveSummary.summary}
+                </p>
+
                 {report.profile.summary && (
-                  <p className="text-xs text-muted-foreground leading-relaxed">
-                    {report.profile.summary}
+                  <p className="text-xs text-muted-foreground italic border-l-2 border-indigo-300 pl-3">
+                    &ldquo;{report.profile.summary}&rdquo;
                   </p>
                 )}
 
-                {/* Experience */}
-                {report.profile.experience.length > 0 && (
-                  <div className="mt-4 space-y-3">
-                    <h4 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                      <Briefcase className="size-3.5 text-indigo-600" />
-                      Work Experience
-                    </h4>
-                    <div className="grid gap-2.5 sm:grid-cols-2">
-                      {report.profile.experience.map((exp) => (
-                        <div
-                          key={exp.id}
-                          className="rounded-xl border border-border/80 bg-background/50 p-3.5 text-xs"
-                        >
-                          <div className="flex items-center justify-between">
-                            <span className="font-semibold text-foreground">{exp.jobTitle}</span>
-                            <span className="text-[11px] text-muted-foreground">
-                              {exp.startDate} - {exp.isCurrent ? 'Present' : exp.endDate || 'Present'}
-                            </span>
-                          </div>
-                          <p className="text-indigo-600 font-medium">{exp.company}</p>
-                          {exp.description && (
-                            <p className="mt-1.5 text-muted-foreground text-[11px] line-clamp-2">
-                              {exp.description}
-                            </p>
-                          )}
-                        </div>
+                {/* Core Strengths and Improvement Areas */}
+                <div className="grid gap-4 sm:grid-cols-2 pt-2">
+                  <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-4">
+                    <p className="text-xs font-bold text-emerald-800 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                      <Check className="size-3.5 text-emerald-600" />
+                      Core Verified Strengths
+                    </p>
+                    <ul className="space-y-1.5 text-xs text-emerald-950">
+                      {report.executiveSummary.strengths.map((str, idx) => (
+                        <li key={idx} className="flex items-start gap-1.5">
+                          <span className="text-emerald-500 font-bold">•</span>
+                          <span>{str}</span>
+                        </li>
                       ))}
-                    </div>
+                    </ul>
                   </div>
-                )}
 
-                {/* Projects */}
+                  <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-4">
+                    <p className="text-xs font-bold text-amber-800 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                      <TrendingUp className="size-3.5 text-amber-600" />
+                      Key Development Opportunities
+                    </p>
+                    <ul className="space-y-1.5 text-xs text-amber-950">
+                      {report.executiveSummary.improvementAreas.map((imp, idx) => (
+                        <li key={idx} className="flex items-start gap-1.5">
+                          <span className="text-amber-500 font-bold">•</span>
+                          <span>{imp}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+
+                {/* Key Competencies Breakdown by Category */}
+                <div className="pt-2">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-1.5">
+                    <Layers className="size-3.5 text-indigo-600" />
+                    Key Competencies by Domain
+                  </h4>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {Object.entries(report.skills.skillsByCategory).map(([category, skillList]) => (
+                      <div
+                        key={category}
+                        className="rounded-xl border border-border/80 bg-background/60 p-3"
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-xs font-semibold text-indigo-700">{category}</span>
+                          <span className="text-[10px] text-muted-foreground">{skillList.length} skills</span>
+                        </div>
+                        <div className="flex flex-wrap gap-1">
+                          {skillList.map((skill) => (
+                            <span
+                              key={skill.id}
+                              className="inline-flex items-center gap-1 rounded bg-white border border-slate-200 px-2 py-0.5 text-[11px] text-slate-800 shadow-2xs"
+                            >
+                              <span>{skill.normalisedName}</span>
+                              <span className="text-[9px] text-muted-foreground font-medium">
+                                ({skill.proficiency})
+                              </span>
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Project Highlights */}
                 {report.profile.projects.length > 0 && (
-                  <div className="mt-4 space-y-3">
-                    <h4 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                  <div className="pt-2">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-1.5">
                       <FolderGit2 className="size-3.5 text-indigo-600" />
-                      Projects & Implementations
+                      Portfolio Project Highlights
                     </h4>
                     <div className="grid gap-2.5 sm:grid-cols-2">
                       {report.profile.projects.map((proj) => (
                         <div
                           key={proj.id}
-                          className="rounded-xl border border-border/80 bg-background/50 p-3.5 text-xs"
+                          className="rounded-xl border border-border/80 bg-background/60 p-3 text-xs"
                         >
-                          <span className="font-semibold text-foreground">{proj.title}</span>
+                          <p className="font-semibold text-foreground">{proj.title}</p>
                           {proj.description && (
                             <p className="mt-1 text-muted-foreground text-[11px] line-clamp-2">
                               {proj.description}
@@ -299,13 +415,10 @@ export default function ReportsPage() {
                           )}
                           {proj.technologies && proj.technologies.length > 0 && (
                             <div className="mt-2 flex flex-wrap gap-1">
-                              {proj.technologies.map((tech) => (
-                                <span
-                                  key={tech}
-                                  className="rounded bg-indigo-50 px-1.5 py-0.5 text-[10px] text-indigo-700 font-medium"
-                                >
-                                  {tech}
-                                </span>
+                              {proj.technologies.map((t) => (
+                                <Badge key={t} variant="secondary" className="text-[10px]">
+                                  {t}
+                                </Badge>
                               ))}
                             </div>
                           )}
@@ -314,227 +427,416 @@ export default function ReportsPage() {
                     </div>
                   </div>
                 )}
+              </div>
+            </section>
 
-                {/* Education & Certs */}
-                {(report.profile.education.length > 0 ||
-                  report.profile.certifications.length > 0) && (
-                  <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                    {report.profile.education.length > 0 && (
-                      <div className="space-y-2">
-                        <h4 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                          <GraduationCap className="size-3.5 text-indigo-600" />
-                          Education
-                        </h4>
-                        {report.profile.education.map((edu) => (
-                          <div
-                            key={edu.id}
-                            className="rounded-xl border border-border/80 bg-background/50 p-3 text-xs"
-                          >
-                            <p className="font-semibold text-foreground">
-                              {edu.degree} in {edu.fieldOfStudy}
-                            </p>
-                            <p className="text-muted-foreground text-[11px]">
-                              {edu.institution} {edu.graduationYear ? `(${edu.graduationYear})` : ''}
-                            </p>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
-                    {report.profile.certifications.length > 0 && (
-                      <div className="space-y-2">
-                        <h4 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                          <Award className="size-3.5 text-indigo-600" />
-                          Certifications
-                        </h4>
-                        {report.profile.certifications.map((cert) => (
-                          <div
-                            key={cert.id}
-                            className="rounded-xl border border-border/80 bg-background/50 p-3 text-xs"
-                          >
-                            <p className="font-semibold text-foreground">{cert.name}</p>
-                            <p className="text-muted-foreground text-[11px]">{cert.issuer}</p>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
+            {/* =========================================================================
+                SECTION 2: CAREER RECOMMENDATIONS
+               ========================================================================= */}
+            <section className="space-y-4">
+              <div className="flex items-center gap-2 border-b border-border/80 pb-2">
+                <span className="flex size-6 items-center justify-center rounded-full bg-indigo-100 text-indigo-700 text-xs font-bold">
+                  2
+                </span>
+                <h3 className="text-lg font-semibold text-foreground">
+                  Career Recommendations
+                </h3>
+                <span className="ml-auto text-xs text-muted-foreground">
+                  Weighted requirement matching & role alignment
+                </span>
               </div>
 
-              {/* Section 2: Technical Skills */}
-              <div className="space-y-4">
-                <div className="flex items-center gap-2 border-b border-border/80 pb-2">
-                  <span className="flex size-6 items-center justify-center rounded-full bg-indigo-100 text-indigo-700 text-xs font-bold">
-                    2
-                  </span>
-                  <h3 className="text-lg font-semibold text-foreground">
-                    Technical Skills Inventory
-                  </h3>
-                  <span className="ml-auto text-xs text-muted-foreground">
-                    {report.skills.totalSkills} skills verified
-                  </span>
-                </div>
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {report.careerMatches.topMatches.map((match) => {
+                  // Find user projects that connect to this role via matched technologies
+                  const relevantProjects = report.profile.projects.filter((p) =>
+                    p.technologies?.some((tech) =>
+                      match.matchedSkills.some(
+                        (ms) => ms.name.toLowerCase() === tech.toLowerCase()
+                      )
+                    )
+                  )
 
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {Object.entries(report.skills.skillsByCategory).map(([cat, skills]) => (
+                  // Find user experience entries that connect to this role
+                  const relevantExperience = report.profile.experience.filter((exp) =>
+                    exp.technologies?.some((tech) =>
+                      match.matchedSkills.some(
+                        (ms) => ms.name.toLowerCase() === tech.toLowerCase()
+                      )
+                    )
+                  )
+
+                  return (
                     <div
-                      key={cat}
-                      className="rounded-xl border border-border/80 bg-background/50 p-3.5"
+                      key={match.roleId}
+                      className="rounded-2xl border border-border/80 bg-background/50 p-4 space-y-3.5 flex flex-col justify-between"
                     >
-                      <h4 className="text-xs font-semibold text-indigo-700 mb-2">
-                        {cat} ({skills.length})
-                      </h4>
-                      <div className="flex flex-wrap gap-1.5">
-                        {skills.map((skill) => (
-                          <span
-                            key={skill.id}
-                            className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-0.5 text-xs text-slate-800 shadow-2xs"
+                      <div className="space-y-3">
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <p className="font-semibold text-foreground text-sm">{match.roleTitle}</p>
+                            <p className="text-[11px] text-muted-foreground">{match.category}</p>
+                          </div>
+                          <Badge
+                            variant={match.matchScore >= 70 ? 'default' : 'secondary'}
+                            className={
+                              match.matchScore >= 70
+                                ? 'bg-emerald-600 text-white font-semibold'
+                                : 'bg-indigo-50 text-indigo-700 font-semibold'
+                            }
                           >
-                            <span>{skill.normalisedName}</span>
-                            <span className="text-[10px] text-muted-foreground font-medium">
-                              • {skill.proficiency}
-                            </span>
+                            {match.matchScore}% Match
+                          </Badge>
+                        </div>
+
+                        {/* Match Progress Bar */}
+                        <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
+                          <div
+                            className={`h-full rounded-full ${
+                              match.matchScore >= 70 ? 'bg-emerald-600' : 'bg-indigo-600'
+                            }`}
+                            style={{ width: `${match.matchScore}%` }}
+                          />
+                        </div>
+
+                        <p className="text-[11px] text-slate-600 leading-relaxed">
+                          {match.explanation}
+                        </p>
+
+                        {/* Supporting Skills in Profile */}
+                        <div className="space-y-1">
+                          <p className="text-[11px] font-bold text-emerald-800 flex items-center gap-1">
+                            <Check className="size-3 text-emerald-600" />
+                            Supporting Skills ({match.matchedSkills.length})
+                          </p>
+                          <div className="flex flex-wrap gap-1">
+                            {match.matchedSkills.length > 0 ? (
+                              match.matchedSkills.map((s) => (
+                                <span
+                                  key={s.name}
+                                  className="rounded bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 text-[10px] text-emerald-900 font-medium"
+                                >
+                                  {s.name}
+                                </span>
+                              ))
+                            ) : (
+                              <span className="text-[10px] text-muted-foreground italic">None currently documented</span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Specific Areas Needing Additional Skills */}
+                        <div className="space-y-1">
+                          <p className="text-[11px] font-bold text-rose-800 flex items-center gap-1">
+                            <AlertTriangle className="size-3 text-rose-600" />
+                            Skills to Improve ({match.missingRequiredSkills.length})
+                          </p>
+                          <div className="flex flex-wrap gap-1">
+                            {match.missingRequiredSkills.length > 0 ? (
+                              match.missingRequiredSkills.map((s) => (
+                                <span
+                                  key={s.name}
+                                  className="rounded bg-rose-50 border border-rose-200 px-1.5 py-0.5 text-[10px] text-rose-900 font-medium"
+                                >
+                                  {s.name} [{s.priority.toUpperCase()}]
+                                </span>
+                              ))
+                            ) : (
+                              <span className="text-[10px] text-emerald-700 italic">Full requirement coverage achieved</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Relevant Projects or Experience */}
+                      {(relevantProjects.length > 0 || relevantExperience.length > 0) && (
+                        <div className="pt-2 border-t border-border/60 text-[10px] text-muted-foreground space-y-1">
+                          {relevantProjects.length > 0 && (
+                            <p className="line-clamp-1">
+                              <span className="font-semibold text-slate-700">Project alignment:</span>{' '}
+                              {relevantProjects.map((p) => p.title).join(', ')}
+                            </p>
+                          )}
+                          {relevantExperience.length > 0 && (
+                            <p className="line-clamp-1">
+                              <span className="font-semibold text-slate-700">Experience alignment:</span>{' '}
+                              {relevantExperience.map((e) => e.jobTitle).join(', ')}
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </section>
+
+            {/* =========================================================================
+                SECTION 3: SKILL GAP SUMMARY
+               ========================================================================= */}
+            <section className="space-y-4">
+              <div className="flex items-center gap-2 border-b border-border/80 pb-2">
+                <span className="flex size-6 items-center justify-center rounded-full bg-indigo-100 text-indigo-700 text-xs font-bold">
+                  3
+                </span>
+                <h3 className="text-lg font-semibold text-foreground">
+                  Skill Gap Summary
+                </h3>
+                <span className="ml-auto text-xs text-muted-foreground">
+                  Target pathway requirements & priority action items
+                </span>
+              </div>
+
+              {/* Target Role Selector Pills */}
+              <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                <span className="text-xs font-medium text-muted-foreground shrink-0">
+                  Select Target Pathway:
+                </span>
+                {report.careerMatches.topMatches.map((m) => (
+                  <button
+                    key={m.roleId}
+                    type="button"
+                    onClick={() => setSelectedTargetRole(m.roleTitle)}
+                    className={`rounded-full px-3 py-1 text-xs font-semibold transition whitespace-nowrap cursor-pointer ${
+                      targetRole === m.roleTitle
+                        ? 'bg-indigo-600 text-white'
+                        : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                    }`}
+                  >
+                    {m.roleTitle} ({m.matchScore}%)
+                  </button>
+                ))}
+              </div>
+
+              {/* Target Role Skill Breakdown */}
+              {currentRoleMatch && (
+                <div className="rounded-2xl border border-border bg-muted/20 p-5 space-y-4">
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {/* Skills You Already Have */}
+                    <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-4">
+                      <p className="text-xs font-bold text-emerald-800 mb-2 flex items-center gap-1.5">
+                        <Check className="size-3.5 text-emerald-600" />
+                        Skills You Already Have ({currentRoleMatch.matchedSkills.length})
+                      </p>
+                      <div className="flex flex-wrap gap-1">
+                        {currentRoleMatch.matchedSkills.map((s) => (
+                          <span
+                            key={s.name}
+                            className="rounded bg-white border border-emerald-200 px-2 py-0.5 text-xs text-emerald-900 font-medium"
+                          >
+                            {s.name}
                           </span>
                         ))}
                       </div>
                     </div>
-                  ))}
+
+                    {/* Missing Skills */}
+                    <div className="rounded-xl border border-rose-200 bg-rose-50/60 p-4">
+                      <p className="text-xs font-bold text-rose-800 mb-2 flex items-center gap-1.5">
+                        <AlertTriangle className="size-3.5 text-rose-600" />
+                        Missing Skills for {currentRoleMatch.roleTitle} ({currentRoleMatch.missingRequiredSkills.length})
+                      </p>
+                      <div className="flex flex-wrap gap-1">
+                        {currentRoleMatch.missingRequiredSkills.length > 0 ? (
+                          currentRoleMatch.missingRequiredSkills.map((s) => (
+                            <span
+                              key={s.name}
+                              className="rounded bg-white border border-rose-200 px-2 py-0.5 text-xs text-rose-900 font-medium"
+                            >
+                              {s.name} [{s.priority.toUpperCase()}]
+                            </span>
+                          ))
+                        ) : (
+                          <span className="text-xs text-emerald-700 italic">None - full skill match!</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Prioritized Learning Steps */}
+                  <div>
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-1.5">
+                      <Target className="size-3.5 text-indigo-600" />
+                      Prioritized Skill Gaps & Actionable Learning Advice
+                    </h4>
+
+                    {report.skillGaps.gaps.filter((g) => g.targetRole === currentRoleMatch.roleTitle).length === 0 ? (
+                      <p className="text-xs text-muted-foreground italic">
+                        No critical skill gaps identified for {currentRoleMatch.roleTitle}.
+                      </p>
+                    ) : (
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        {report.skillGaps.gaps
+                          .filter((g) => g.targetRole === currentRoleMatch.roleTitle)
+                          .map((gap) => (
+                            <div
+                              key={gap.id}
+                              className="rounded-xl border border-border bg-card p-4 text-xs space-y-2 shadow-2xs"
+                            >
+                              <div className="flex items-center justify-between">
+                                <span className="font-bold text-foreground text-sm">{gap.skillName}</span>
+                                <Badge
+                                  variant="outline"
+                                  className={
+                                    gap.priority === 'high'
+                                      ? 'border-rose-200 bg-rose-50 text-rose-700 text-[10px]'
+                                      : gap.priority === 'medium'
+                                      ? 'border-amber-200 bg-amber-50 text-amber-700 text-[10px]'
+                                      : 'border-slate-200 bg-slate-50 text-slate-700 text-[10px]'
+                                  }
+                                >
+                                  {gap.priority.toUpperCase()} PRIORITY
+                                </Badge>
+                              </div>
+                              <p className="text-[11px] text-muted-foreground leading-relaxed">
+                                <strong className="text-slate-800">Role Requirement:</strong> {gap.reason}
+                              </p>
+                              <p className="text-[11px] text-indigo-700 font-medium bg-indigo-50/60 rounded p-2 border border-indigo-100">
+                                <strong className="text-indigo-900">Suggested Action:</strong> {gap.suggestedAction}
+                              </p>
+                            </div>
+                          ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
+              )}
+            </section>
+
+            {/* =========================================================================
+                SECTION 4: RELATIONSHIP AND ASSOCIATION INSIGHTS
+               ========================================================================= */}
+            <section className="space-y-4">
+              <div className="flex items-center gap-2 border-b border-border/80 pb-2">
+                <span className="flex size-6 items-center justify-center rounded-full bg-indigo-100 text-indigo-700 text-xs font-bold">
+                  4
+                </span>
+                <h3 className="text-lg font-semibold text-foreground">
+                  Relationship & Association Insights
+                </h3>
+                <span className="ml-auto text-xs text-muted-foreground">
+                  Portfolio co-occurrence & Apriori mining rules
+                </span>
               </div>
 
-              {/* Section 3: Career Role Matches */}
-              <div className="space-y-4">
-                <div className="flex items-center gap-2 border-b border-border/80 pb-2">
-                  <span className="flex size-6 items-center justify-center rounded-full bg-indigo-100 text-indigo-700 text-xs font-bold">
-                    3
-                  </span>
-                  <h3 className="text-lg font-semibold text-foreground">
-                    Career Role Match Analysis
-                  </h3>
-                  <span className="ml-auto text-xs text-muted-foreground">
-                    Weighted Requirement Coverage
-                  </span>
+              {/* Metric Definition Banner */}
+              <div className="rounded-xl border border-indigo-100 bg-indigo-50/60 p-4 text-xs text-indigo-900 space-y-2">
+                <p className="font-semibold flex items-center gap-1.5">
+                  <Info className="size-4 text-indigo-600" />
+                  Understanding Co-Occurrence Metrics:
+                </p>
+                <div className="grid gap-2 sm:grid-cols-3 text-[11px] text-indigo-950">
+                  <div className="rounded bg-white/70 p-2 border border-indigo-100">
+                    <span className="font-bold text-indigo-900 block">Support</span>
+                    Frequency of technology occurrence across your portfolio transactions.
+                  </div>
+                  <div className="rounded bg-white/70 p-2 border border-indigo-100">
+                    <span className="font-bold text-indigo-900 block">Confidence</span>
+                    Conditional probability that when you use technology A, you also use technology B.
+                  </div>
+                  <div className="rounded bg-white/70 p-2 border border-indigo-100">
+                    <span className="font-bold text-indigo-900 block">Lift (&gt; 1.0)</span>
+                    Strength of technological synergy beyond independent random chance.
+                  </div>
                 </div>
+                <p className="text-[10px] text-indigo-700/90 pt-1 border-t border-indigo-200/60">
+                  <strong>Personal Portfolio Notice:</strong> Association metrics and co-occurrence patterns calculated from your portfolio reflect your individual project history and technology pairings, rather than population-wide industry rules.
+                </p>
+              </div>
 
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  {report.careerMatches.topMatches.map((match) => (
-                    <div
-                      key={match.roleId}
-                      className="rounded-xl border border-border/80 bg-background/50 p-4 space-y-3"
-                    >
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <p className="font-semibold text-foreground text-sm">{match.roleTitle}</p>
-                          <p className="text-[11px] text-muted-foreground">{match.category}</p>
+              {/* Projects and Connected Technologies */}
+              <div className="space-y-3">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                  <FolderGit2 className="size-3.5 text-indigo-600" />
+                  Projects & Connected Technologies
+                </h4>
+
+                {report.projectRelationships.projectTechAssociations.length === 0 ? (
+                  <p className="text-xs text-muted-foreground italic">
+                    No project technology associations documented. Add projects with technologies to reveal connections.
+                  </p>
+                ) : (
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {report.projectRelationships.projectTechAssociations.map((proj, idx) => (
+                      <div
+                        key={idx}
+                        className="rounded-xl border border-border/80 bg-background/50 p-3.5 text-xs space-y-2"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="font-semibold text-foreground">{proj.projectTitle}</span>
+                          <span className="text-[10px] text-muted-foreground">
+                            {proj.technologies.length} technologies
+                          </span>
                         </div>
-                        <Badge
-                          variant={match.matchScore >= 70 ? 'default' : 'secondary'}
-                          className={
-                            match.matchScore >= 70
-                              ? 'bg-emerald-600 text-white'
-                              : 'bg-indigo-50 text-indigo-700'
-                          }
+                        {proj.description && (
+                          <p className="text-[11px] text-muted-foreground line-clamp-2">
+                            {proj.description}
+                          </p>
+                        )}
+                        <div className="flex flex-wrap gap-1">
+                          {proj.technologies.map((t) => (
+                            <Badge key={t} variant="secondary" className="text-[10px]">
+                              {t}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Frequently Co-occurring Technologies Across Portfolio */}
+                {report.projectRelationships.repeatedSkills.length > 0 && (
+                  <div className="rounded-xl border border-border bg-muted/30 p-4 text-xs">
+                    <p className="font-semibold text-slate-900 mb-1.5">
+                      Anchor Technologies Utilized Repeatedly Across Portfolio:
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {report.projectRelationships.repeatedSkills.map((r) => (
+                        <span
+                          key={r.skill}
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-white px-2.5 py-1 text-xs font-medium text-indigo-900"
                         >
-                          {match.matchScore}%
-                        </Badge>
-                      </div>
-
-                      {/* Covered Skills */}
-                      <div>
-                        <p className="text-[11px] font-semibold text-emerald-700">Covered Skills</p>
-                        <p className="text-[11px] text-muted-foreground truncate">
-                          {match.matchedSkills.map((s) => s.name).join(', ') || 'None'}
-                        </p>
-                      </div>
-
-                      {/* Missing Critical Skills */}
-                      <div>
-                        <p className="text-[11px] font-semibold text-rose-600">Missing Skills</p>
-                        <p className="text-[11px] text-muted-foreground truncate">
-                          {match.missingRequiredSkills.map((s) => s.name).join(', ') || 'None'}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Section 4: Skill Gap Analysis */}
-              <div className="space-y-4">
-                <div className="flex items-center gap-2 border-b border-border/80 pb-2">
-                  <span className="flex size-6 items-center justify-center rounded-full bg-indigo-100 text-indigo-700 text-xs font-bold">
-                    4
-                  </span>
-                  <h3 className="text-lg font-semibold text-foreground">
-                    Skill Gap Analysis & Learning Priorities
-                  </h3>
-                </div>
-
-                <div className="grid gap-2.5 sm:grid-cols-2">
-                  {report.skillGaps.gaps.slice(0, 6).map((gap) => (
-                    <div
-                      key={gap.id}
-                      className="flex items-start justify-between rounded-xl border border-border/80 bg-background/50 p-3 text-xs"
-                    >
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-semibold text-foreground">{gap.skillName}</span>
-                          <Badge
-                            variant="outline"
-                            className={
-                              gap.priority === 'high'
-                                ? 'border-rose-200 bg-rose-50 text-rose-700 text-[10px]'
-                                : 'border-amber-200 bg-amber-50 text-amber-700 text-[10px]'
-                            }
-                          >
-                            {gap.priority.toUpperCase()} PRIORITY
+                          <span>{r.skill}</span>
+                          <Badge className="bg-indigo-600 text-white text-[10px] px-1.5 py-0">
+                            {r.count}x
                           </Badge>
-                        </div>
-                        <p className="mt-1 text-[11px] text-muted-foreground">
-                          Target: {gap.targetRole}
-                        </p>
-                        <p className="mt-0.5 text-[11px] text-slate-600">
-                          {gap.suggestedAction}
-                        </p>
-                      </div>
+                        </span>
+                      ))}
                     </div>
-                  ))}
-                </div>
+                  </div>
+                )}
               </div>
 
-              {/* Section 5: Data-Mined Relationships */}
-              <div className="space-y-4">
-                <div className="flex items-center gap-2 border-b border-border/80 pb-2">
-                  <span className="flex size-6 items-center justify-center rounded-full bg-indigo-100 text-indigo-700 text-xs font-bold">
-                    5
-                  </span>
-                  <h3 className="text-lg font-semibold text-foreground">
-                    Mined Skill Relationships
-                  </h3>
-                  <span className="ml-auto text-xs text-muted-foreground">
-                    Co-Occurrence Association Rules
+              {/* Association Rules Table */}
+              <div className="space-y-3 pt-2">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                    Mined Association Rules ({report.relationships.rules.length})
+                  </h4>
+                  <span className="text-[11px] text-muted-foreground">
+                    Mined from {report.relationships.totalTransactionsMined} profile transactions
                   </span>
                 </div>
 
                 {report.relationships.rules.length === 0 ? (
                   <p className="text-xs text-muted-foreground italic">
-                    No co-occurrence patterns discovered. Add more projects and work experiences to calculate support and confidence rules.
+                    No co-occurrence patterns discovered yet. Add more projects and work experiences to calculate support and confidence rules.
                   </p>
                 ) : (
                   <div className="overflow-hidden rounded-xl border border-border/80">
                     <table className="w-full text-left text-xs">
                       <thead className="bg-muted/50 text-[11px] font-semibold text-muted-foreground">
                         <tr>
-                          <th className="p-3">Antecedent</th>
-                          <th className="p-3">Consequent</th>
+                          <th className="p-3">Antecedent (Used)</th>
+                          <th className="p-3">Consequent (Also Used)</th>
                           <th className="p-3 text-right">Support</th>
                           <th className="p-3 text-right">Confidence</th>
                           <th className="p-3 text-right">Lift</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-border/60">
-                        {report.relationships.rules.slice(0, 6).map((rule, idx) => (
+                        {report.relationships.rules.slice(0, 8).map((rule, idx) => (
                           <tr key={idx} className="hover:bg-muted/30">
                             <td className="p-3 font-medium text-foreground">
                               {rule.antecedent.join(', ')}
@@ -558,57 +860,104 @@ export default function ReportsPage() {
                   </div>
                 )}
               </div>
+            </section>
 
-              {/* Section 6: Analytics Summary */}
-              <div className="space-y-4">
-                <div className="flex items-center gap-2 border-b border-border/80 pb-2">
-                  <span className="flex size-6 items-center justify-center rounded-full bg-indigo-100 text-indigo-700 text-xs font-bold">
-                    6
-                  </span>
-                  <h3 className="text-lg font-semibold text-foreground">
-                    Analytics Summary
-                  </h3>
-                </div>
-
-                <div className="grid gap-3 sm:grid-cols-4">
-                  <div className="rounded-xl border border-border/80 bg-background/50 p-3 text-center">
-                    <p className="text-2xl font-bold text-indigo-600">
-                      {report.analytics.totalSkills}
-                    </p>
-                    <p className="text-[11px] text-muted-foreground">Verified Skills</p>
-                  </div>
-                  <div className="rounded-xl border border-border/80 bg-background/50 p-3 text-center">
-                    <p className="text-2xl font-bold text-indigo-600">
-                      {report.analytics.totalTransactions}
-                    </p>
-                    <p className="text-[11px] text-muted-foreground">Portfolio Transactions</p>
-                  </div>
-                  <div className="rounded-xl border border-border/80 bg-background/50 p-3 text-center">
-                    <p className="text-2xl font-bold text-indigo-600">
-                      {report.analytics.totalProjects}
-                    </p>
-                    <p className="text-[11px] text-muted-foreground">Projects Logged</p>
-                  </div>
-                  <div className="rounded-xl border border-border/80 bg-background/50 p-3 text-center">
-                    <p className="text-2xl font-bold text-indigo-600">
-                      {report.careerMatches.totalMatchesEvaluated}
-                    </p>
-                    <p className="text-[11px] text-muted-foreground">Benchmark Roles</p>
-                  </div>
-                </div>
+            {/* =========================================================================
+                SECTION 5: RECOMMENDED ACTION PLAN
+               ========================================================================= */}
+            <section className="space-y-4">
+              <div className="flex items-center gap-2 border-b border-border/80 pb-2">
+                <span className="flex size-6 items-center justify-center rounded-full bg-indigo-100 text-indigo-700 text-xs font-bold">
+                  5
+                </span>
+                <h3 className="text-lg font-semibold text-foreground">
+                  Recommended Action Plan
+                </h3>
+                <span className="ml-auto text-xs text-muted-foreground">
+                  Structured 30-60-90 day milestone roadmap
+                </span>
               </div>
 
-              {/* Section 7: Data Limitations & Academic Disclosure */}
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-xs space-y-2">
+              {/* 30-60-90 Day Milestone Cards */}
+              <div className="grid gap-3 sm:grid-cols-3">
+                {report.actionPlan.prioritizedSteps.map((step, idx) => (
+                  <div
+                    key={idx}
+                    className="rounded-xl border border-border bg-background/50 p-4 text-xs space-y-2 flex flex-col justify-between"
+                  >
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <Badge
+                          variant={step.priority === 'high' ? 'default' : 'secondary'}
+                          className={
+                            step.priority === 'high'
+                              ? 'bg-rose-600 text-white text-[10px]'
+                              : 'bg-indigo-50 text-indigo-700 text-[10px]'
+                          }
+                        >
+                          {step.priority.toUpperCase()} PRIORITY
+                        </Badge>
+                        <span className="text-[10px] text-muted-foreground font-semibold flex items-center gap-1">
+                          <Clock className="size-3" />
+                          {step.timeframe}
+                        </span>
+                      </div>
+                      <h4 className="font-bold text-foreground text-sm">{step.title}</h4>
+                      <p className="mt-1 text-muted-foreground text-[11px] leading-relaxed">
+                        {step.description}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Suggested Strengthening Project */}
+              {report.actionPlan.recommendedProjects.length > 0 && (
+                <div className="rounded-xl border border-indigo-200 bg-indigo-50/50 p-4 text-xs space-y-2">
+                  <p className="font-bold text-indigo-950 flex items-center gap-1.5">
+                    <Lightbulb className="size-4 text-indigo-600" />
+                    Recommended Strengthening Project: {report.actionPlan.recommendedProjects[0].title}
+                  </p>
+                  <p className="text-[11px] text-indigo-900 leading-relaxed">
+                    {report.actionPlan.recommendedProjects[0].purpose}
+                  </p>
+                  <div className="flex flex-wrap gap-1 pt-1">
+                    {report.actionPlan.recommendedProjects[0].technologies.map((t) => (
+                      <Badge key={t} variant="secondary" className="text-[10px]">
+                        {t}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Career Preparation & Methodology Disclosure */}
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-xs space-y-3">
                 <div className="flex items-center gap-2 text-slate-800 font-semibold">
                   <ShieldAlert className="size-4 text-indigo-600" />
-                  <span>Academic Methodology & Data Limitations Disclosure</span>
+                  <span>Transparent Methodology & Confidence Disclosure</span>
                 </div>
+
                 <p className="text-[11px] text-muted-foreground leading-relaxed">
-                  NETGRAPH calculates career recommendations using deterministic weighted skill requirement coverage and empirical co-occurrence frequency mining. Scores represent benchmark similarity heuristics for exploratory career planning, not verified commercial employment predictions.
+                  This report is generated by NETGRAPH using transparent co-occurrence transaction counting, Apriori support/confidence association rules, and deterministic weighted requirement coverage matching. Analyzed profile data includes explicit skills, projects, and work history. It represents an exploratory planning heuristic and does not guarantee commercial employment outcomes or integrate external labor market data.
                 </p>
+
+                <div className="grid gap-2 sm:grid-cols-3 pt-1 text-[11px]">
+                  <div className="rounded-lg bg-white p-2.5 border border-slate-200">
+                    <span className="font-semibold text-slate-800 block">Data Sources Analyzed</span>
+                    <span className="text-slate-600">Saved profile skills, projects, experiences, coursework</span>
+                  </div>
+                  <div className="rounded-lg bg-white p-2.5 border border-slate-200">
+                    <span className="font-semibold text-slate-800 block">Mining Algorithms</span>
+                    <span className="text-slate-600">Apriori co-occurrence, Jaccard similarity, weighted matching</span>
+                  </div>
+                  <div className="rounded-lg bg-white p-2.5 border border-slate-200">
+                    <span className="font-semibold text-slate-800 block">Confidence Level</span>
+                    <span className="text-slate-600 capitalize">{report.limitations.confidenceLevel} data confidence</span>
+                  </div>
+                </div>
               </div>
-            </div>
+            </section>
           </div>
         )}
       </div>
