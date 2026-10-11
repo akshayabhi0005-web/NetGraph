@@ -1,7 +1,7 @@
 'use client'
 
-import React, { Component, useRef, useState, useEffect } from 'react'
-import { Canvas, useFrame } from '@react-three/fiber'
+import React, { Component, useRef, useState, useEffect, useMemo } from 'react'
+import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { OrbitControls, Float, Line, Html } from '@react-three/drei'
 import * as THREE from 'three'
 
@@ -10,23 +10,137 @@ export type GraphNode = {
   pos: [number, number, number]
   tone: string
   size: number
+  labelOffset: [number, number, number]
+  labelAlign: 'left' | 'right' | 'center'
 }
 
 export const GRAPH_NODES: GraphNode[] = [
-  { label: 'Python', pos: [-1.7, 1.2, 0.4], tone: '#3b82f6', size: 0.16 },
-  { label: 'Java', pos: [-2.1, -0.4, -0.7], tone: '#2563eb', size: 0.15 },
-  { label: 'JavaScript', pos: [1.2, 2.0, 0.3], tone: '#0ea5e9', size: 0.15 },
-  { label: 'React', pos: [2.2, 1.5, 0.5], tone: '#38bdf8', size: 0.16 },
-  { label: 'Machine Learning', pos: [0.2, -1.3, 0.8], tone: '#8b5cf6', size: 0.17 },
-  { label: 'Data Mining', pos: [-0.8, -1.5, -0.6], tone: '#7c3aed', size: 0.17 },
-  { label: 'SQL', pos: [1.8, 0.6, -0.4], tone: '#6366f1', size: 0.16 },
-  { label: 'Data Analyst', pos: [2.4, -0.5, 0.4], tone: '#4f46e5', size: 0.18 },
-  { label: 'Data Scientist', pos: [0.9, -1.8, -0.4], tone: '#6366f1', size: 0.19 },
-  { label: 'Software Engineer', pos: [1.9, -1.3, -0.8], tone: '#3b82f6', size: 0.18 },
-  { label: 'AI Engineer', pos: [-1.5, -1.6, 0.7], tone: '#8b5cf6', size: 0.18 },
-  { label: 'Cloud Computing', pos: [-1.2, 1.9, -0.5], tone: '#0284c7', size: 0.16 },
-  { label: 'Projects', pos: [0.5, -0.2, 0.4], tone: '#4338ca', size: 0.20 },
-  { label: 'Skills', pos: [-0.5, 0.4, 0.5], tone: '#4f46e5', size: 0.21 },
+  // 0: Python (Upper left)
+  {
+    label: 'Python',
+    pos: [-1.65, 0.85, 0.45],
+    tone: '#3b82f6',
+    size: 0.16,
+    labelOffset: [-0.22, 0.02, 0],
+    labelAlign: 'right',
+  },
+  // 1: Java (Middle left)
+  {
+    label: 'Java',
+    pos: [-1.85, -0.2, -0.55],
+    tone: '#2563eb',
+    size: 0.15,
+    labelOffset: [-0.22, 0.02, 0],
+    labelAlign: 'right',
+  },
+  // 2: JavaScript (Top center-right)
+  {
+    label: 'JavaScript',
+    pos: [0.55, 1.45, 0.3],
+    tone: '#0ea5e9',
+    size: 0.15,
+    labelOffset: [0, 0.24, 0],
+    labelAlign: 'center',
+  },
+  // 3: React (Top right)
+  {
+    label: 'React',
+    pos: [1.7, 1.15, 0.4],
+    tone: '#38bdf8',
+    size: 0.16,
+    labelOffset: [0.22, 0.02, 0],
+    labelAlign: 'left',
+  },
+  // 4: Machine Learning (Lower front-center)
+  {
+    label: 'Machine Learning',
+    pos: [0.1, -0.72, 0.8],
+    tone: '#8b5cf6',
+    size: 0.18,
+    labelOffset: [-0.24, 0.02, 0],
+    labelAlign: 'right',
+  },
+  // 5: Data Mining (Lower mid-back)
+  {
+    label: 'Data Mining',
+    pos: [-0.55, -0.95, -0.6],
+    tone: '#7c3aed',
+    size: 0.17,
+    labelOffset: [0.22, 0.02, 0],
+    labelAlign: 'left',
+  },
+  // 6: SQL (Mid right)
+  {
+    label: 'SQL',
+    pos: [1.6, 0.25, -0.4],
+    tone: '#6366f1',
+    size: 0.16,
+    labelOffset: [0.22, 0.02, 0],
+    labelAlign: 'left',
+  },
+  // 7: Data Analyst (Lower mid right)
+  {
+    label: 'Data Analyst',
+    pos: [1.8, -0.6, 0.35],
+    tone: '#4f46e5',
+    size: 0.17,
+    labelOffset: [0.24, 0.02, 0],
+    labelAlign: 'left',
+  },
+  // 8: Data Scientist (Bottom center)
+  {
+    label: 'Data Scientist',
+    pos: [0.35, -1.45, 0.45],
+    tone: '#6366f1',
+    size: 0.18,
+    labelOffset: [0, -0.26, 0],
+    labelAlign: 'center',
+  },
+  // 9: Software Engineer (Bottom right)
+  {
+    label: 'Software Engineer',
+    pos: [1.35, -1.35, -0.55],
+    tone: '#3b82f6',
+    size: 0.18,
+    labelOffset: [0.24, -0.04, 0],
+    labelAlign: 'left',
+  },
+  // 10: AI Engineer (Bottom left)
+  {
+    label: 'AI Engineer',
+    pos: [-1.35, -1.25, 0.6],
+    tone: '#8b5cf6',
+    size: 0.18,
+    labelOffset: [-0.24, -0.04, 0],
+    labelAlign: 'right',
+  },
+  // 11: Cloud Computing (Top left)
+  {
+    label: 'Cloud Computing',
+    pos: [-1.15, 1.35, -0.45],
+    tone: '#0284c7',
+    size: 0.16,
+    labelOffset: [0, 0.24, 0],
+    labelAlign: 'center',
+  },
+  // 12: Projects (Center-right hub)
+  {
+    label: 'Projects',
+    pos: [0.4, -0.15, 0.3],
+    tone: '#4338ca',
+    size: 0.20,
+    labelOffset: [0, -0.28, 0],
+    labelAlign: 'center',
+  },
+  // 13: Skills (Center-left hub)
+  {
+    label: 'Skills',
+    pos: [-0.4, 0.25, 0.3],
+    tone: '#4f46e5',
+    size: 0.21,
+    labelOffset: [0, 0.28, 0],
+    labelAlign: 'center',
+  },
 ]
 
 export const GRAPH_LINKS: [number, number][] = [
@@ -77,40 +191,49 @@ export const GRAPH_LINKS: [number, number][] = [
 function NetworkScene() {
   const group = useRef<THREE.Group>(null)
   const [active, setActive] = useState<string | null>(null)
+  const { size } = useThree()
+
+  // Calculate responsive scale based on canvas pixel width
+  const responsiveScale = useMemo(() => {
+    if (size.width >= 1024) return 1.0
+    if (size.width >= 768) return 0.88
+    if (size.width >= 480) return 0.78
+    return Math.max(0.65, Math.min(0.75, size.width / 480))
+  }, [size.width])
 
   useFrame((state, delta) => {
     if (group.current) {
       group.current.rotation.y += delta * 0.05
-      group.current.rotation.x = Math.sin(state.clock.elapsedTime * 0.22) * 0.04
+      group.current.rotation.x = Math.sin(state.clock.elapsedTime * 0.2) * 0.035
     }
   })
 
   return (
-    <group ref={group}>
-      {GRAPH_LINKS.map(([a, b], index) => {
-        const p1 = GRAPH_NODES[a]?.pos
-        const p2 = GRAPH_NODES[b]?.pos
-        if (!p1 || !p2) return null
-        return (
-          <Line
-            key={index}
-            points={[p1, p2]}
-            color="#a5b4fc"
-            lineWidth={0.7}
-            transparent
-            opacity={0.5}
-          />
-        )
-      })}
+    <group ref={group} scale={responsiveScale}>
+      <Float
+        speed={1.1}
+        rotationIntensity={0.06}
+        floatIntensity={0.12}
+        floatingRange={[-0.06, 0.06]}
+      >
+        {GRAPH_LINKS.map(([a, b], index) => {
+          const p1 = GRAPH_NODES[a]?.pos
+          const p2 = GRAPH_NODES[b]?.pos
+          if (!p1 || !p2) return null
+          return (
+            <Line
+              key={index}
+              points={[p1, p2]}
+              color="#a5b4fc"
+              lineWidth={0.8}
+              transparent
+              opacity={0.45}
+            />
+          )
+        })}
 
-      {GRAPH_NODES.map((node) => (
-        <Float
-          key={node.label}
-          speed={1.1}
-          rotationIntensity={0.15}
-          floatIntensity={0.2}
-        >
-          <group position={node.pos}>
+        {GRAPH_NODES.map((node) => (
+          <group key={node.label} position={node.pos}>
             {/* Interactive sphere mesh */}
             <mesh
               onPointerOver={(e) => {
@@ -123,32 +246,42 @@ function NetworkScene() {
               <meshStandardMaterial
                 color={node.tone}
                 emissive={node.tone}
-                emissiveIntensity={active === node.label ? 0.65 : 0.35}
-                roughness={0.2}
+                emissiveIntensity={active === node.label ? 0.7 : 0.35}
+                roughness={0.25}
                 metalness={0.1}
               />
             </mesh>
 
-            {/* Always visible node label */}
+            {/* Always visible node label directly attached without card/pill/box */}
             <Html
-              position={[0, node.size + 0.16, 0]}
-              center
-              distanceFactor={8.2}
+              position={node.labelOffset}
+              center={node.labelAlign === 'center'}
+              distanceFactor={9.8}
               zIndexRange={[100, 0]}
             >
-              <div
-                className={`pointer-events-none select-none whitespace-nowrap rounded-md px-2 py-0.5 text-[11px] font-semibold tracking-tight transition-all duration-200 ${
+              <span
+                className={`pointer-events-none block select-none whitespace-nowrap tracking-tight transition-all duration-150 ${
+                  node.labelAlign === 'right'
+                    ? '-translate-x-full -translate-y-1/2 text-right'
+                    : node.labelAlign === 'left'
+                    ? '-translate-y-1/2 text-left'
+                    : ''
+                } ${
                   active === node.label
-                    ? 'scale-110 bg-indigo-950 text-white shadow-lg ring-2 ring-indigo-400'
-                    : 'border border-slate-200/80 bg-white/92 text-slate-800 shadow-xs backdrop-blur-[2px]'
+                    ? 'font-bold text-indigo-950 scale-105'
+                    : 'font-semibold text-slate-800'
                 }`}
+                style={{
+                  fontSize: node.size >= 0.2 ? '12.5px' : '11.5px',
+                  color: active === node.label ? '#1e1b4b' : '#1e293b',
+                }}
               >
                 {node.label}
-              </div>
+              </span>
             </Html>
           </group>
-        </Float>
-      ))}
+        ))}
+      </Float>
     </group>
   )
 }
@@ -210,7 +343,7 @@ export function NetgraphCanvas() {
   return (
     <WebGLErrorBoundary fallback={fallbackNotice}>
       <Canvas
-        camera={{ position: [0.35, 0, 6.6], fov: 44 }}
+        camera={{ position: [0, 0, 7.2], fov: 42 }}
         dpr={[1, 1.5]}
         gl={{ antialias: true, alpha: true, powerPreference: 'default' }}
         fallback={fallbackNotice}
