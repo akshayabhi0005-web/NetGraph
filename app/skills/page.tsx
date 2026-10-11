@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { useAuth } from '@/context/auth-context'
+import { useCareerAnalysis } from '@/hooks/use-career-analysis'
 import {
   Wrench,
   Plus,
@@ -16,6 +17,10 @@ import {
   Search,
   CheckCircle2,
   TrendingUp,
+  Link2,
+  HelpCircle,
+  Briefcase,
+  FolderGit2,
 } from 'lucide-react'
 import {
   SkillEntry,
@@ -23,7 +28,6 @@ import {
   SkillProficiency,
   SKILL_CATEGORIES,
   SKILL_PROFICIENCIES,
-  POPULAR_TECH_SKILLS,
 } from '@/lib/profile'
 
 const PROFICIENCY_PERCENT: Record<SkillProficiency, number> = {
@@ -35,6 +39,8 @@ const PROFICIENCY_PERCENT: Record<SkillProficiency, number> = {
 
 export default function SkillsPage() {
   const { user, updateProfile } = useAuth()
+  const { analysis, coOccurrences, associationRules, dataQuality } = useCareerAnalysis()
+
   const [selectedCategory, setSelectedCategory] = useState<string>('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [showAddModal, setShowAddModal] = useState(false)
@@ -43,6 +49,7 @@ export default function SkillsPage() {
   const [newSkillProf, setNewSkillProf] = useState<SkillProficiency>('Intermediate')
   const [newSkillYears, setNewSkillYears] = useState('2')
   const [notification, setNotification] = useState<string | null>(null)
+  const [showMetricExplainer, setShowMetricExplainer] = useState(false)
 
   // Derive skills list from user
   const skills: SkillEntry[] =
@@ -113,6 +120,37 @@ export default function SkillsPage() {
     updateProfile({ skillsList: updated })
   }
 
+  // Helper to find co-occurring skills and rules for a given skill name
+  const getSkillCoOccurrences = (skillName: string) => {
+    const target = skillName.toLowerCase()
+    const matches = coOccurrences.filter(
+      (c) => c.skillA.toLowerCase() === target || c.skillB.toLowerCase() === target
+    )
+    return matches.map((m) => {
+      const other = m.skillA.toLowerCase() === target ? m.skillB : m.skillA
+      return { otherSkill: other, count: m.count }
+    })
+  }
+
+  const getSkillRules = (skillName: string) => {
+    const target = skillName.toLowerCase()
+    return associationRules.filter(
+      (r) => r.antecedent[0]?.toLowerCase() === target
+    )
+  }
+
+  // Find where skill was used in projects or experience
+  const getSkillProvenance = (skillName: string) => {
+    const target = skillName.toLowerCase()
+    const foundProjects = (user?.projects || []).filter((p) =>
+      (p.technologies || []).some((t) => t.toLowerCase() === target)
+    )
+    const foundExperience = (user?.experience || []).filter((e) =>
+      (e.technologies || []).some((t) => t.toLowerCase() === target)
+    )
+    return { projects: foundProjects, experience: foundExperience }
+  }
+
   return (
     <AppShell title="Skills">
       <div className="mx-auto max-w-7xl">
@@ -120,13 +158,13 @@ export default function SkillsPage() {
         <div className="flex flex-col justify-between gap-5 md:flex-row md:items-end">
           <div>
             <Badge variant="secondary" className="rounded-full bg-indigo-50 text-indigo-700">
-              Live Profile Skills
+              Mined Skill Intelligence
             </Badge>
             <h1 className="mt-3 text-3xl font-semibold tracking-[-.05em] md:text-4xl">
-              Skill-gap analysis & inventory
+              Skill inventory & relationship mining
             </h1>
             <p className="mt-2 text-muted-foreground">
-              A comprehensive breakdown of your represented technical and domain capabilities.
+              Verified competencies paired with empirical co-occurrence patterns discovered from your projects.
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -155,14 +193,14 @@ export default function SkillsPage() {
         )}
 
         {/* Metric Cards */}
-        <div className="mt-8 grid gap-4 sm:grid-cols-3">
+        <div className="mt-8 grid gap-4 sm:grid-cols-4">
           <div className="rounded-2xl border border-border bg-card p-5 shadow-xs">
             <div className="flex items-center justify-between">
               <span className="text-sm text-muted-foreground">Cataloged skills</span>
               <Wrench className="size-4 text-indigo-500" />
             </div>
             <p className="mt-4 text-3xl font-semibold tracking-[-.05em]">{totalCount}</p>
-            <p className="mt-1 text-xs text-emerald-600 font-medium">Mapped to 3D graph</p>
+            <p className="mt-1 text-xs text-emerald-600 font-medium">Mapped to graph</p>
           </div>
 
           <div className="rounded-2xl border border-border bg-card p-5 shadow-xs">
@@ -184,9 +222,56 @@ export default function SkillsPage() {
             </p>
             <p className="mt-1 text-xs text-muted-foreground">Breadth of experience</p>
           </div>
+
+          <div className="rounded-2xl border border-border bg-card p-5 shadow-xs">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">Mined associations</span>
+              <Link2 className="size-4 text-indigo-500" />
+            </div>
+            <p className="mt-4 text-3xl font-semibold tracking-[-.05em]">{coOccurrences.length}</p>
+            <p className="mt-1 text-xs text-emerald-600 font-medium">Empirical pairings</p>
+          </div>
         </div>
 
-        {/* Inline Add Skill Modal / Drawer */}
+        {/* Association Metrics Explainer Toggle */}
+        <div className="mt-6 flex flex-col rounded-2xl border border-indigo-100 bg-indigo-50/50 p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-xs font-semibold text-indigo-900">
+              <HelpCircle className="size-4 text-indigo-600" />
+              How are skill relationships mined?
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowMetricExplainer(!showMetricExplainer)}
+              className="text-xs text-indigo-700 hover:text-indigo-900 h-7 px-2"
+            >
+              {showMetricExplainer ? 'Hide explanation' : 'Learn about Support, Confidence & Lift'}
+            </Button>
+          </div>
+
+          {showMetricExplainer && (
+            <div className="mt-3 grid gap-3 sm:grid-cols-3 border-t border-indigo-100 pt-3 text-xs text-slate-600">
+              <div>
+                <strong className="text-slate-900 block mb-0.5">Support</strong>
+                Fraction of total projects containing both technologies. Formula: Count(A & B) / Total Projects.
+              </div>
+              <div>
+                <strong className="text-slate-900 block mb-0.5">Confidence</strong>
+                Probability of using Skill B whenever you use Skill A. Formula: Count(A & B) / Count(A).
+              </div>
+              <div>
+                <strong className="text-slate-900 block mb-0.5">Lift</strong>
+                Strength of co-occurrence relative to random pairing. Lift &gt; 1.0 indicates a strong technology synergy in your work.
+              </div>
+              <div className="sm:col-span-3 text-[11px] text-slate-500 italic mt-1">
+                * Note: Mined associations reflect co-occurrence in your specific portfolio transactions, not causation or external market standards.
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Inline Add Skill Modal */}
         {showAddModal && (
           <div className="mt-6 rounded-2xl border border-indigo-200 bg-indigo-50/70 p-6 shadow-sm">
             <div className="flex items-center justify-between">
@@ -307,7 +392,7 @@ export default function SkillsPage() {
           </div>
         </div>
 
-        {/* Skill Cards Grid */}
+        {/* Skill Cards Grid with Mined Relationships */}
         <div className="mt-6">
           {filteredSkills.length === 0 ? (
             <div className="rounded-3xl border border-dashed border-border py-16 text-center">
@@ -325,17 +410,15 @@ export default function SkillsPage() {
                 >
                   <Plus className="size-4 mr-1.5" /> Add Skill Now
                 </Button>
-                {skills.length === 0 && (
-                  <Button asChild variant="outline" className="rounded-full">
-                    <Link href="/onboarding">Run Guided Onboarding</Link>
-                  </Button>
-                )}
               </div>
             </div>
           ) : (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {filteredSkills.map((skill) => {
                 const percentage = PROFICIENCY_PERCENT[skill.proficiency] || 60
+                const coItems = getSkillCoOccurrences(skill.name)
+                const rules = getSkillRules(skill.name)
+                const provenance = getSkillProvenance(skill.name)
 
                 return (
                   <div
@@ -362,7 +445,7 @@ export default function SkillsPage() {
                       </div>
 
                       {/* Proficiency Bar & Selector */}
-                      <div className="mt-5">
+                      <div className="mt-4">
                         <div className="flex items-center justify-between text-xs">
                           <span className="text-muted-foreground">Proficiency</span>
                           <select
@@ -380,47 +463,79 @@ export default function SkillsPage() {
                           </select>
                         </div>
 
-                        <div className="mt-2 h-2 overflow-hidden rounded-full bg-muted">
+                        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted">
                           <div
                             className="h-full rounded-full bg-indigo-600 transition-all duration-300"
                             style={{ width: `${percentage}%` }}
                           />
                         </div>
                       </div>
+
+                      {/* Provenance: Project & Experience References */}
+                      {(provenance.projects.length > 0 || provenance.experience.length > 0) && (
+                        <div className="mt-3.5 flex flex-wrap gap-2 text-[11px] text-muted-foreground">
+                          {provenance.projects.length > 0 && (
+                            <span className="inline-flex items-center gap-1 bg-slate-50 px-2 py-0.5 rounded-md border border-slate-200">
+                              <FolderGit2 className="size-3 text-indigo-500" />
+                              {provenance.projects.length} project{provenance.projects.length > 1 ? 's' : ''}
+                            </span>
+                          )}
+                          {provenance.experience.length > 0 && (
+                            <span className="inline-flex items-center gap-1 bg-slate-50 px-2 py-0.5 rounded-md border border-slate-200">
+                              <Briefcase className="size-3 text-emerald-500" />
+                              {provenance.experience.length} job{provenance.experience.length > 1 ? 's' : ''}
+                            </span>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Mined Co-occurrences */}
+                      {coItems.length > 0 && (
+                        <div className="mt-4 border-t border-border pt-3">
+                          <span className="text-[11px] font-semibold text-slate-700 block">
+                            Frequently Co-Occurs With:
+                          </span>
+                          <div className="mt-1.5 flex flex-wrap gap-1">
+                            {coItems.slice(0, 3).map((co, i) => (
+                              <Badge
+                                key={i}
+                                variant="secondary"
+                                className="bg-indigo-50 text-indigo-700 text-[10px]"
+                                title={`Appeared together in ${co.count} portfolio transaction(s)`}
+                              >
+                                {co.otherSkill} ({co.count}x)
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Association Rule Metrics */}
+                      {rules.length > 0 && (
+                        <div className="mt-2.5 text-[10px] text-slate-500 bg-slate-50 p-2 rounded-lg border border-slate-100">
+                          <span>
+                            Top Rule: {rules[0].antecedent[0]} &rarr; {rules[0].consequent[0]}
+                          </span>
+                          <span className="block text-indigo-600 font-medium">
+                            Conf: {(rules[0].confidence * 100).toFixed(0)}% · Lift: {rules[0].lift.toFixed(2)}
+                          </span>
+                        </div>
+                      )}
                     </div>
 
-                    <div className="mt-5 flex items-center justify-between border-t border-border pt-3 text-xs text-muted-foreground">
+                    <div className="mt-4 flex items-center justify-between border-t border-border pt-2 text-xs text-muted-foreground">
                       <span>
                         {skill.yearsOfExperience
                           ? `${skill.yearsOfExperience} yr${skill.yearsOfExperience > 1 ? 's' : ''} exp`
                           : 'Demonstrated'}
                       </span>
-                      <span className="font-medium text-slate-600">{percentage}% proficiency</span>
+                      <span className="font-medium text-slate-600">{percentage}% score</span>
                     </div>
                   </div>
                 )
               })}
             </div>
           )}
-        </div>
-
-        {/* Skill Recommendations / Exploration Section */}
-        <div className="mt-10 rounded-2xl border border-indigo-100 bg-indigo-50/60 p-6 md:flex md:items-center md:justify-between">
-          <div className="flex gap-4">
-            <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-card text-indigo-600 shadow-xs">
-              <TrendingUp className="size-5" />
-            </div>
-            <div>
-              <h3 className="font-semibold text-slate-900">Recommended Growth Trajectory</h3>
-              <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-600">
-                Based on your current skill cluster, gaining proficiency in Machine Learning, Cloud Computing,
-                and Data Mining will boost your alignment for Senior AI and Data Science roles.
-              </p>
-            </div>
-          </div>
-          <Button asChild variant="outline" className="mt-4 rounded-full bg-card md:mt-0">
-            <Link href="/career">Explore Target Careers</Link>
-          </Button>
         </div>
       </div>
     </AppShell>
