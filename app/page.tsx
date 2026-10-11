@@ -8,6 +8,8 @@ import { NetgraphHero } from '@/components/netgraph-hero'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 
+import { useAuth } from '@/context/auth-context'
+
 const features = [
   { icon: ScanSearch, title: 'Profile-based analysis', text: 'Turn your experience, education, and skills into a structured career profile.' },
   { icon: Target, title: 'Career matches', text: 'Compare your profile with transparent, illustrative role requirements.' },
@@ -24,20 +26,49 @@ const steps = [
 
 export default function Page() {
   const [menuOpen, setMenuOpen] = useState(false)
+  const { isAuthenticated, user } = useAuth()
+
   return <main className="min-h-screen overflow-hidden bg-background text-foreground">
     <nav className="sticky top-0 z-50 border-b border-border/70 bg-background/85 backdrop-blur-xl">
       <div className="mx-auto flex h-[72px] max-w-7xl items-center justify-between px-5 lg:px-8">
         <Link href="/" className="flex items-center gap-2.5"><span className="flex size-8 items-center justify-center rounded-[10px] bg-indigo-600 text-white shadow-lg shadow-indigo-200"><Network className="size-4" /></span><span className="text-[15px] font-bold tracking-[-0.04em]">NETGRAPH</span></Link>
         <div className="hidden items-center gap-8 text-sm font-medium text-muted-foreground md:flex"><a href="#features" className="transition hover:text-foreground">Features</a><a href="#how-it-works" className="transition hover:text-foreground">How it works</a><a href="#about" className="transition hover:text-foreground">About</a></div>
-        <div className="hidden items-center gap-3 md:flex"><Link href="/login" className="px-3 py-2 text-sm font-semibold text-slate-600 hover:text-foreground">Log in</Link><Button asChild className="rounded-full bg-slate-950 px-5 hover:bg-indigo-700"><Link href="/signup">Get started <ArrowRight data-icon="inline-end" /></Link></Button></div>
+        <div className="hidden items-center gap-3 md:flex">
+          {isAuthenticated ? (
+            <>
+              <Link href="/dashboard" className="px-3 py-2 text-sm font-semibold text-slate-600 hover:text-foreground">Dashboard</Link>
+              <Button asChild className="rounded-full bg-slate-950 px-5 hover:bg-indigo-700 text-white"><Link href="/dashboard">Open Workspace <ArrowRight data-icon="inline-end" /></Link></Button>
+            </>
+          ) : (
+            <>
+              <Link href="/login" className="px-3 py-2 text-sm font-semibold text-slate-600 hover:text-foreground">Log in</Link>
+              <Button asChild className="rounded-full bg-slate-950 px-5 hover:bg-indigo-700 text-white"><Link href="/signup">Get started <ArrowRight data-icon="inline-end" /></Link></Button>
+            </>
+          )}
+        </div>
         <button aria-label="Toggle navigation" className="rounded-lg p-2 md:hidden" onClick={() => setMenuOpen(!menuOpen)}>{menuOpen ? <X /> : <Menu />}</button>
       </div>
-      {menuOpen && <div className="flex flex-col gap-4 border-t border-border bg-card/80 px-5 py-5 md:hidden"><a href="#features" onClick={() => setMenuOpen(false)}>Features</a><a href="#how-it-works" onClick={() => setMenuOpen(false)}>How it works</a><Link href="/login">Log in</Link><Button asChild><Link href="/signup">Get started</Link></Button></div>}
+      {menuOpen && <div className="flex flex-col gap-4 border-t border-border bg-card/80 px-5 py-5 md:hidden">
+        <a href="#features" onClick={() => setMenuOpen(false)}>Features</a>
+        <a href="#how-it-works" onClick={() => setMenuOpen(false)}>How it works</a>
+        {isAuthenticated ? (
+          <Link href="/dashboard" onClick={() => setMenuOpen(false)}>Dashboard</Link>
+        ) : (
+          <>
+            <Link href="/login" onClick={() => setMenuOpen(false)}>Log in</Link>
+            <Button asChild><Link href="/signup">Get started</Link></Button>
+          </>
+        )}
+      </div>}
     </nav>
 
     <section className="relative mx-auto grid max-w-7xl items-center gap-10 px-5 pb-20 pt-12 lg:grid-cols-[0.8fr_1.2fr] lg:gap-6 lg:px-8 lg:pb-28 lg:pt-16 overflow-visible">
       <div className="relative z-10">
-        <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .5 }}><Badge variant="secondary" className="mb-6 rounded-full border border-indigo-100 bg-primary/10 px-3 py-1.5 text-indigo-700"><Sparkles className="mr-1.5 size-3.5" /> Career intelligence, mapped</Badge><h1 className="max-w-xl text-[clamp(3.25rem,7vw,6.4rem)] font-semibold leading-[0.94] tracking-[-0.075em] text-foreground">Find the thread between <span className="text-indigo-600">what you know</span> and what&apos;s next.</h1><p className="mt-7 max-w-lg text-lg leading-8 text-muted-foreground">NETGRAPH explores the relationships between your skills, projects, technologies, and career opportunities — so your next move feels less like a guess.</p><div className="mt-9 flex flex-wrap items-center gap-3"><Button asChild size="lg" className="rounded-full bg-slate-950 px-6 hover:bg-indigo-700"><Link href="/signup">Build your profile <ArrowRight data-icon="inline-end" /></Link></Button><a href="#how-it-works" className="group flex items-center gap-2 px-3 text-sm font-semibold text-slate-600">See how it works <ChevronRight className="size-4 transition group-hover:translate-x-1" /></a></div><p className="mt-6 text-xs font-medium text-slate-400">Start with your profile. Explore insights when your analysis is ready.</p></motion.div>
+        <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .5 }}><Badge variant="secondary" className="mb-6 rounded-full border border-indigo-100 bg-primary/10 px-3 py-1.5 text-indigo-700"><Sparkles className="mr-1.5 size-3.5" /> Career intelligence, mapped</Badge><h1 className="max-w-xl text-[clamp(3.25rem,7vw,6.4rem)] font-semibold leading-[0.94] tracking-[-0.075em] text-foreground">Find the thread between <span className="text-indigo-600">what you know</span> and what&apos;s next.</h1><p className="mt-7 max-w-lg text-lg leading-8 text-muted-foreground">NETGRAPH explores the relationships between your skills, projects, technologies, and career opportunities — so your next move feels less like a guess.</p><div className="mt-9 flex flex-wrap items-center gap-3">
+          <Button asChild size="lg" className="rounded-full bg-slate-950 px-6 hover:bg-indigo-700 text-white">
+            <Link href={isAuthenticated ? "/dashboard" : "/signup"}>{isAuthenticated ? "Go to workspace" : "Build your profile"} <ArrowRight data-icon="inline-end" /></Link>
+          </Button>
+          <a href="#how-it-works" className="group flex items-center gap-2 px-3 text-sm font-semibold text-slate-600">See how it works <ChevronRight className="size-4 transition group-hover:translate-x-1" /></a></div><p className="mt-6 text-xs font-medium text-slate-400">Start with your profile. Explore insights when your analysis is ready.</p></motion.div>
       </div>
       <motion.div initial={{ opacity: 0, scale: .98 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: .7, delay: .15 }} className="relative h-[480px] w-full overflow-visible sm:h-[580px] lg:h-[720px] pointer-events-auto"><NetgraphHero className="h-full w-full overflow-visible" /></motion.div>
     </section>
