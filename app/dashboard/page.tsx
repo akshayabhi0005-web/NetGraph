@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import { AppShell } from '@/components/app-shell'
 import { useAuth } from '@/context/auth-context'
+import { calculateProfileCompleteness } from '@/lib/profile'
 
 const data = [
   { month: 'Jan', skills: 38 },
@@ -35,6 +36,10 @@ const matches = [
 export default function DashboardPage() {
   const { user } = useAuth()
   const firstName = user?.name ? user.name.split(' ')[0] : 'Scholar'
+  const completeness = calculateProfileCompleteness(user)
+  const skillsCount = user?.skillsList?.length || user?.skills?.length || 0
+  const educationCount = user?.education?.length || 0
+  const experienceCount = user?.experience?.length || 0
 
   return (
     <AppShell title="Overview">
@@ -58,13 +63,37 @@ export default function DashboardPage() {
           </div>
         </div>
 
+        {/* Onboarding Prompt Banner if not onboarded or incomplete */}
+        {!user?.onboarded && (
+          <div className="mt-6 flex flex-col justify-between gap-4 rounded-2xl border border-indigo-200 bg-indigo-50/80 p-5 sm:flex-row sm:items-center">
+            <div className="flex items-center gap-3.5">
+              <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-xs">
+                <Sparkles className="size-5" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-slate-900">
+                  Complete your profile onboarding ({completeness}% complete)
+                </h3>
+                <p className="text-sm text-slate-600">
+                  Walk through the 5-step guided setup to optimize your 3D graph connections and skill recommendations.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <Button asChild size="sm" className="rounded-full bg-indigo-600 hover:bg-indigo-700 text-white">
+                <Link href="/onboarding">Complete onboarding &rarr;</Link>
+              </Button>
+            </div>
+          </div>
+        )}
+
         {/* Metric Cards */}
         <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {[
-            ['Skills identified', `${user?.skills?.length || 18}`, '+4 this month', UserRound],
+            ['Skills identified', `${skillsCount}`, skillsCount > 0 ? `${skillsCount} verified skills` : 'No skills added', UserRound],
             ['Career alignment', '72%', 'Across 3 roles', Target],
-            ['Connections found', '46', '12 new links', Network],
-            ['Profile completeness', user?.onboarded ? '92%' : '75%', 'Almost there', Sparkles],
+            ['Education & Exp', `${educationCount + experienceCount}`, `${educationCount} degrees · ${experienceCount} roles`, Network],
+            ['Profile completeness', `${completeness}%`, completeness >= 80 ? 'Profile optimized' : 'Action recommended', Sparkles],
           ].map(([label, value, note, Icon]) => (
             <div key={label as string} className="rounded-2xl border border-border bg-card p-5 shadow-xs">
               <div className="flex items-center justify-between">
