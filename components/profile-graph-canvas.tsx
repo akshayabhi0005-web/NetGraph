@@ -12,6 +12,9 @@ import {
   ExternalLink,
   ArrowRight,
   X,
+  Plus,
+  Minus,
+  RotateCcw,
 } from 'lucide-react'
 
 interface ProfileGraphCanvasProps {
@@ -318,6 +321,20 @@ export function ProfileGraphCanvas({ nodes, edges, className }: ProfileGraphCanv
       const next = z + zoomDelta
       return Math.min(2.5, Math.max(0.4, +next.toFixed(2)))
     })
+  }, [])
+
+  // Button zoom controls (Zoom In / Zoom Out / Reset View)
+  const handleZoomIn = useCallback(() => {
+    setZoom((z) => Math.min(2.5, +(z * 1.25).toFixed(2)))
+  }, [])
+
+  const handleZoomOut = useCallback(() => {
+    setZoom((z) => Math.max(0.4, +(z / 1.25).toFixed(2)))
+  }, [])
+
+  const handleResetView = useCallback(() => {
+    setZoom(1)
+    setPan({ x: 0, y: 0 })
   }, [])
 
   // Canvas background pan handlers (preserves natural pan navigation)
@@ -685,7 +702,42 @@ export function ProfileGraphCanvas({ nodes, edges, className }: ProfileGraphCanv
               )
             })}
           </div>
+
+          {/* Zoom Controls — top-right corner, above legend and away from details panel */}
+          <div className="absolute top-3 right-3 flex flex-col gap-1.5 z-10">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleZoomIn}
+              aria-label="Zoom in"
+              title="Zoom in"
+              className="size-8 p-0 rounded-lg bg-card/90 backdrop-blur-xs border-border shadow-xs hover:bg-indigo-50 hover:border-indigo-300 hover:text-indigo-700"
+            >
+              <Plus className="size-3.5" />
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleZoomOut}
+              aria-label="Zoom out"
+              title="Zoom out"
+              className="size-8 p-0 rounded-lg bg-card/90 backdrop-blur-xs border-border shadow-xs hover:bg-indigo-50 hover:border-indigo-300 hover:text-indigo-700"
+            >
+              <Minus className="size-3.5" />
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleResetView}
+              aria-label="Reset view"
+              title="Reset view"
+              className="size-8 p-0 rounded-lg bg-card/90 backdrop-blur-xs border-border shadow-xs hover:bg-indigo-50 hover:border-indigo-300 hover:text-indigo-700"
+            >
+              <RotateCcw className="size-3.5" />
+            </Button>
+          </div>
         </div>
+
 
         {/* 3. Node & Relationship Details Panel (Side Area) */}
         <aside className="border-t lg:border-t-0 lg:border-l border-border bg-card p-5 overflow-y-auto max-h-[600px]">
