@@ -18,6 +18,7 @@ import {
   Info,
   X,
   PlusCircle,
+  GitCompare,
 } from 'lucide-react'
 import { CareerRoleMatch } from '@/lib/data-mining/types'
 
@@ -51,6 +52,12 @@ export default function CareerPage() {
           <div className="flex items-center gap-3">
             <Button asChild variant="outline" className="rounded-full">
               <Link href="/profile">Edit Profile Skills</Link>
+            </Button>
+            <Button asChild variant="outline" className="rounded-full">
+              <Link href="/career/compare">
+                <GitCompare className="mr-1.5 size-4" />
+                Compare Paths
+              </Link>
             </Button>
             <Button asChild className="rounded-full bg-indigo-600 hover:bg-indigo-700 text-white">
               <Link href="/graph">Explore 3D Graph &rarr;</Link>

@@ -15,6 +15,7 @@ import {
   Plus,
   Minus,
   RotateCcw,
+  Download,
 } from 'lucide-react'
 
 interface ProfileGraphCanvasProps {
@@ -123,6 +124,10 @@ export function ProfileGraphCanvas({ nodes, edges, className }: ProfileGraphCanv
   const [customPositions, setCustomPositions] = useState<Record<string, { x: number; y: number }>>({})
 
   const svgRef = useRef<SVGSVGElement>(null)
+
+  // Export states (PNG and SVG export)
+  const [isExporting, setIsExporting] = useState<'png' | 'svg' | null>(null)
+  const [exportMessage, setExportMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
   // Reset custom positions when node list changes
   useEffect(() => {
@@ -337,6 +342,263 @@ export function ProfileGraphCanvas({ nodes, edges, className }: ProfileGraphCanv
     setPan({ x: 0, y: 0 })
   }, [])
 
+  // Export helper to construct a standalone, publication-quality SVG string
+  const getExportSVGString = useCallback(() => {
+    if (!svgRef.current) return null
+
+    const clone = svgRef.current.cloneNode(true) as SVGSVGElement
+
+    // 1. Set explicit standalone attributes and dimensions
+    clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
+    clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink')
+    clone.setAttribute('width', '960')
+    clone.setAttribute('height', '600')
+    clone.setAttribute('viewBox', '0 0 960 600')
+
+    // 2. Remove invisible 16px hover hitboxes
+    clone.querySelectorAll('line[stroke="transparent"]').forEach((el) => el.remove())
+
+    // 3. Reset any interactive dimmed opacity so all visible nodes are clear
+    clone.querySelectorAll('[opacity="0.25"], .opacity-25').forEach((el) => {
+      el.setAttribute('opacity', '1')
+      el.classList.remove('opacity-25')
+    })
+
+    // 4. Inject clean font family styling into defs
+    let defs = clone.querySelector('defs')
+    if (!defs) {
+      defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs')
+      clone.insertBefore(defs, clone.firstChild)
+    }
+    const styleEl = document.createElementNS('http://www.w3.org/2000/svg', 'style')
+    styleEl.textContent = `
+      text { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+    `
+    defs.appendChild(styleEl)
+
+    // 5. Prepend background rectangle
+    const bgRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect')
+    bgRect.setAttribute('width', '100%')
+    bgRect.setAttribute('height', '100%')
+    bgRect.setAttribute('fill', '#f8fafc')
+    clone.insertBefore(bgRect, defs.nextSibling || clone.firstChild)
+
+    // 6. Header branding & metadata watermark (top-left)
+    const headerGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g')
+    headerGroup.setAttribute('id', 'export-header')
+
+    const brandText = document.createElementNS('http://www.w3.org/2000/svg', 'text')
+    brandText.setAttribute('x', '24')
+    brandText.setAttribute('y', '32')
+    brandText.setAttribute('fill', '#4f46e5')
+    brandText.setAttribute('font-size', '11')
+    brandText.setAttribute('font-weight', 'bold')
+    brandText.setAttribute('letter-spacing', '0.1em')
+    brandText.textContent = 'NETGRAPH'
+    headerGroup.appendChild(brandText)
+
+    const titleText = document.createElementNS('http://www.w3.org/2000/svg', 'text')
+    titleText.setAttribute('x', '24')
+    titleText.setAttribute('y', '54')
+    titleText.setAttribute('fill', '#0f172a')
+    titleText.setAttribute('font-size', '16')
+    titleText.setAttribute('font-weight', 'bold')
+    titleText.textContent = 'Relationship Graph'
+    headerGroup.appendChild(titleText)
+
+    const subText = document.createElementNS('http://www.w3.org/2000/svg', 'text')
+    subText.setAttribute('x', '24')
+    subText.setAttribute('y', '72')
+    subText.setAttribute('fill', '#64748b')
+    subText.setAttribute('font-size', '11')
+    const filterLabel = selectedType !== 'all' ? ` • Filtered: ${selectedType}` : ''
+    subText.textContent = `${filteredNodes.length} Entities • ${filteredEdges.length} Connections${filterLabel}`
+    headerGroup.appendChild(subText)
+
+    clone.appendChild(headerGroup)
+
+    // 7. Footer legend (bottom-left) & watermark (bottom-right)
+    const footerGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g')
+    footerGroup.setAttribute('id', 'export-footer')
+
+    const activeCategories = Object.entries(TYPE_CONFIG)
+      .filter(([type]) => (categoryCounts[type] || 0) > 0)
+      .map(([type, cfg]) => ({ id: type, label: cfg.label, fill: cfg.fill }))
+
+    if (activeCategories.length > 0) {
+      let legendX = 24
+      const legendY = 576
+
+      const legendTitle = document.createElementNS('http://www.w3.org/2000/svg', 'text')
+      legendTitle.setAttribute('x', legendX.toString())
+      legendTitle.setAttribute('y', legendY.toString())
+      legendTitle.setAttribute('fill', '#334155')
+      legendTitle.setAttribute('font-size', '10')
+      legendTitle.setAttribute('font-weight', 'bold')
+      legendTitle.textContent = 'Legend:'
+      footerGroup.appendChild(legendTitle)
+      legendX += 48
+
+      activeCategories.forEach((cat) => {
+        const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle')
+        circle.setAttribute('cx', (legendX + 4).toString())
+        circle.setAttribute('cy', (legendY - 3).toString())
+        circle.setAttribute('r', '4')
+        circle.setAttribute('fill', cat.fill)
+        footerGroup.appendChild(circle)
+
+        const label = document.createElementNS('http://www.w3.org/2000/svg', 'text')
+        label.setAttribute('x', (legendX + 12).toString())
+        label.setAttribute('y', legendY.toString())
+        label.setAttribute('fill', '#475569')
+        label.setAttribute('font-size', '10')
+        label.textContent = cat.label
+        footerGroup.appendChild(label)
+
+        legendX += cat.label.length * 6 + 24
+      })
+    }
+
+    const timestampText = document.createElementNS('http://www.w3.org/2000/svg', 'text')
+    timestampText.setAttribute('x', '936')
+    timestampText.setAttribute('y', '576')
+    timestampText.setAttribute('text-anchor', 'end')
+    timestampText.setAttribute('fill', '#94a3b8')
+    timestampText.setAttribute('font-size', '10')
+    timestampText.textContent = 'Career Intelligence, Mapped'
+    footerGroup.appendChild(timestampText)
+
+    clone.appendChild(footerGroup)
+
+    return new XMLSerializer().serializeToString(clone)
+  }, [filteredNodes.length, filteredEdges.length, selectedType, categoryCounts])
+
+  // Handle Export SVG
+  const handleExportSVG = useCallback(() => {
+    if (filteredNodes.length === 0) {
+      setExportMessage({ type: 'error', text: 'No graph data to export.' })
+      return
+    }
+
+    setIsExporting('svg')
+    setExportMessage(null)
+
+    try {
+      const svgString = getExportSVGString()
+      if (!svgString) {
+        throw new Error('Could not serialize graph SVG')
+      }
+
+      const blob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = 'netgraph-relationship-graph.svg'
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      setTimeout(() => URL.revokeObjectURL(url), 1000)
+
+      setExportMessage({ type: 'success', text: 'SVG exported successfully!' })
+    } catch (err) {
+      console.error('Failed to export SVG:', err)
+      setExportMessage({ type: 'error', text: 'Failed to export SVG. Please try again.' })
+    } finally {
+      setIsExporting(null)
+      setTimeout(() => setExportMessage(null), 3000)
+    }
+  }, [filteredNodes.length, getExportSVGString])
+
+  // Handle Export PNG
+  const handleExportPNG = useCallback(() => {
+    if (filteredNodes.length === 0) {
+      setExportMessage({ type: 'error', text: 'No graph data to export.' })
+      return
+    }
+
+    setIsExporting('png')
+    setExportMessage(null)
+
+    try {
+      const svgString = getExportSVGString()
+      if (!svgString) {
+        throw new Error('Could not serialize graph SVG')
+      }
+
+      const blob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' })
+      const url = URL.createObjectURL(blob)
+      const img = new Image()
+
+      img.onload = () => {
+        try {
+          const canvas = document.createElement('canvas')
+          // High-resolution: 2x scale (1920x1200) for sharp presentation/print quality
+          const scale = 2
+          canvas.width = 960 * scale
+          canvas.height = 600 * scale
+
+          const ctx = canvas.getContext('2d')
+          if (!ctx) {
+            throw new Error('Could not obtain 2D canvas context')
+          }
+
+          ctx.fillStyle = '#f8fafc'
+          ctx.fillRect(0, 0, canvas.width, canvas.height)
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+
+          canvas.toBlob(
+            (pngBlob) => {
+              if (!pngBlob) {
+                setExportMessage({ type: 'error', text: 'Canvas failed to generate PNG blob.' })
+                setIsExporting(null)
+                return
+              }
+
+              const pngUrl = URL.createObjectURL(pngBlob)
+              const link = document.createElement('a')
+              link.href = pngUrl
+              link.download = 'netgraph-relationship-graph.png'
+              document.body.appendChild(link)
+              link.click()
+              document.body.removeChild(link)
+
+              setTimeout(() => {
+                URL.revokeObjectURL(pngUrl)
+                URL.revokeObjectURL(url)
+              }, 1000)
+
+              setExportMessage({ type: 'success', text: 'PNG exported successfully!' })
+              setIsExporting(null)
+              setTimeout(() => setExportMessage(null), 3000)
+            },
+            'image/png'
+          )
+        } catch (innerErr) {
+          URL.revokeObjectURL(url)
+          console.error('Canvas draw error:', innerErr)
+          setExportMessage({ type: 'error', text: 'Failed to convert graph to PNG image.' })
+          setIsExporting(null)
+          setTimeout(() => setExportMessage(null), 3000)
+        }
+      }
+
+      img.onerror = () => {
+        URL.revokeObjectURL(url)
+        console.error('Image load failed for SVG blob')
+        setExportMessage({ type: 'error', text: 'Failed to render graph image for export.' })
+        setIsExporting(null)
+        setTimeout(() => setExportMessage(null), 3000)
+      }
+
+      img.src = url
+    } catch (err) {
+      console.error('Failed to start PNG export:', err)
+      setExportMessage({ type: 'error', text: 'Failed to export PNG. Please try again.' })
+      setIsExporting(null)
+      setTimeout(() => setExportMessage(null), 3000)
+    }
+  }, [filteredNodes.length, getExportSVGString])
+
   // Canvas background pan handlers (preserves natural pan navigation)
   const handleCanvasPointerDown = (e: React.PointerEvent) => {
     if (e.button !== 0 || draggedNodeId) return
@@ -428,9 +690,9 @@ export function ProfileGraphCanvas({ nodes, edges, className }: ProfileGraphCanv
           })}
         </div>
 
-        {/* Search Field */}
-        <div className="flex items-center gap-2 w-full sm:w-auto">
-          <div className="relative flex-1 sm:w-64">
+        {/* Search Field & Export Actions */}
+        <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto">
+          <div className="relative flex-1 sm:w-56 md:w-60">
             <Search className="absolute left-2.5 top-2.5 size-3.5 text-muted-foreground" />
             <Input
               value={searchQuery}
@@ -448,8 +710,58 @@ export function ProfileGraphCanvas({ nodes, edges, className }: ProfileGraphCanv
               </button>
             )}
           </div>
+
+          <div className="flex items-center gap-1.5">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleExportPNG}
+              disabled={filteredNodes.length === 0 || isExporting !== null}
+              aria-label="Export relationship graph as high-resolution PNG image"
+              title={filteredNodes.length === 0 ? 'No graph data available to export' : 'Export high-resolution PNG image'}
+              className="h-9 rounded-full px-3 text-xs gap-1.5 border-border bg-background hover:bg-indigo-50 hover:border-indigo-300 hover:text-indigo-700 font-medium"
+            >
+              <Download className="size-3.5" />
+              <span>{isExporting === 'png' ? 'Exporting...' : 'Export PNG'}</span>
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleExportSVG}
+              disabled={filteredNodes.length === 0 || isExporting !== null}
+              aria-label="Export relationship graph as scalable SVG vector"
+              title={filteredNodes.length === 0 ? 'No graph data available to export' : 'Export scalable SVG vector'}
+              className="h-9 rounded-full px-3 text-xs gap-1.5 border-border bg-background hover:bg-indigo-50 hover:border-indigo-300 hover:text-indigo-700 font-medium"
+            >
+              <Download className="size-3.5" />
+              <span>{isExporting === 'svg' ? 'Exporting...' : 'Export SVG'}</span>
+            </Button>
+          </div>
         </div>
       </div>
+
+      {/* Export Status Notification Banner */}
+      {exportMessage && (
+        <div
+          role="status"
+          aria-live="polite"
+          className={`flex items-center justify-between border-b px-4 py-2 text-xs font-medium transition-colors ${
+            exportMessage.type === 'success'
+              ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+              : 'bg-rose-50 text-rose-800 border-rose-200'
+          }`}
+        >
+          <span>{exportMessage.text}</span>
+          <button
+            type="button"
+            onClick={() => setExportMessage(null)}
+            className="text-muted-foreground hover:text-foreground"
+            aria-label="Dismiss export notification"
+          >
+            <X className="size-3.5" />
+          </button>
+        </div>
+      )}
 
       {/* 2. Main Two-Column Graph Workspace */}
       <div className="relative grid lg:grid-cols-[1fr_360px] min-h-[600px]">

@@ -50,19 +50,32 @@ function Button({
   className,
   variant = "default",
   size = "default",
-  asChild,
+  asChild = false,
   children,
   ...props
 }: ButtonProps) {
   if (asChild && React.isValidElement(children)) {
-    return (
-      <ButtonPrimitive
-        data-slot="button"
-        className={cn(buttonVariants({ variant, size, className }))}
-        render={children as React.ReactElement}
-        {...props}
-      />
-    )
+    const child = children as React.ReactElement<Record<string, unknown>>
+    const childProps = child.props
+    const onClick = (e: React.MouseEvent<HTMLElement>) => {
+      if (typeof childProps.onClick === "function") {
+        childProps.onClick(e)
+      }
+      if (typeof props.onClick === "function") {
+        ;(props.onClick as (event: React.MouseEvent<HTMLElement>) => void)(e)
+      }
+    }
+
+    return React.cloneElement(child, {
+      ...props,
+      ...childProps,
+      ...(props.onClick || childProps.onClick ? { onClick } : {}),
+      className: cn(
+        buttonVariants({ variant, size, className }),
+        typeof childProps.className === "string" ? childProps.className : undefined
+      ),
+      "data-slot": "button",
+    })
   }
 
   return (
