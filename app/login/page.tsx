@@ -14,7 +14,7 @@ function LoginForm() {
   const searchParams = useSearchParams()
   const redirectPath = searchParams.get('redirect') || '/dashboard'
 
-  const { login, loginDemo, isAuthenticated, isLoading: authLoading } = useAuth()
+  const { login, loginDemo, isAuthenticated, user, isLoading: authLoading } = useAuth()
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -26,9 +26,13 @@ function LoginForm() {
   // Redirect if already authenticated
   useEffect(() => {
     if (!authLoading && isAuthenticated) {
-      router.push(redirectPath)
+      if (user && !user.onboarded) {
+        router.push('/onboarding')
+      } else {
+        router.push(redirectPath)
+      }
     }
-  }, [authLoading, isAuthenticated, router, redirectPath])
+  }, [authLoading, isAuthenticated, user?.onboarded, router, redirectPath])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -59,7 +63,11 @@ function LoginForm() {
     setIsSubmitting(false)
 
     if (result.success) {
-      router.push(redirectPath)
+      if (result.user && !result.user.onboarded) {
+        router.push('/onboarding')
+      } else {
+        router.push(redirectPath)
+      }
     } else {
       if (result.isDatabaseUnavailable) {
         setErrorMessage(

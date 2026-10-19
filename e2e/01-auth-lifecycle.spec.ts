@@ -46,9 +46,9 @@ test.describe('1. Authentication and Session Workflows', () => {
     await page.check('input[type="checkbox"]')
     await page.click('button[type="submit"]')
 
-    // Wait for redirect to onboarding or dashboard
-    await page.waitForURL(/\/(onboarding|dashboard)/, { timeout: 15000 })
-    expect(page.url()).toMatch(/\/(onboarding|dashboard)/)
+    // Wait for redirect to onboarding
+    await page.waitForURL(/\/onboarding/, { timeout: 15000 })
+    expect(page.url()).toContain('/onboarding')
   })
 
   test('1.4 Duplicate registration is rejected with appropriate error', async ({ page }) => {

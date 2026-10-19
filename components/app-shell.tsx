@@ -82,8 +82,10 @@ export function AppShell({
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
       router.push(`/login?redirect=${encodeURIComponent(path)}`)
+    } else if (!isLoading && isAuthenticated && user && !user.onboarded) {
+      router.push('/onboarding')
     }
-  }, [isLoading, isAuthenticated, path, router])
+  }, [isLoading, isAuthenticated, user, path, router])
 
   const handleLogout = async () => {
     await logout()
@@ -101,7 +103,7 @@ export function AppShell({
     )
   }
 
-  if (!isAuthenticated) {
+  if (!isAuthenticated || (user && !user.onboarded)) {
     return null
   }
 

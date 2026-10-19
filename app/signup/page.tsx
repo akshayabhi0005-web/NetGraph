@@ -11,7 +11,7 @@ import { useAuth } from '@/context/auth-context'
 
 export default function SignupPage() {
   const router = useRouter()
-  const { signup, isAuthenticated, isLoading: authLoading } = useAuth()
+  const { signup, isAuthenticated, user, isLoading: authLoading } = useAuth()
 
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
@@ -23,9 +23,13 @@ export default function SignupPage() {
   // Redirect if already authenticated
   useEffect(() => {
     if (!authLoading && isAuthenticated) {
-      router.push('/dashboard')
+      if (user?.onboarded) {
+        router.push('/dashboard')
+      } else {
+        router.push('/onboarding')
+      }
     }
-  }, [authLoading, isAuthenticated, router])
+  }, [authLoading, isAuthenticated, user?.onboarded, router])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()

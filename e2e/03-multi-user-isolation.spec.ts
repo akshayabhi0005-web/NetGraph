@@ -39,6 +39,13 @@ test.describe('3. Multi-User and Database Isolation Workflows', () => {
     expect(putResponseA.status()).toBe(200)
     await page.waitForTimeout(500)
 
+    // Complete onboarding for User A
+    await page.click('button:has-text("Continue to Step 3")')
+    await page.click('button:has-text("Continue to Step 4")')
+    await page.click('button:has-text("Continue to Step 5")')
+    await page.click('button:has-text("Complete Onboarding")')
+    await expect(page.locator('text=Your career profile is ready!')).toBeVisible({ timeout: 15000 })
+
     // Go to profile and verify headline is present
     await page.goto('/profile')
     await page.waitForLoadState('networkidle')
@@ -77,6 +84,13 @@ test.describe('3. Multi-User and Database Isolation Workflows', () => {
     ])
     expect(putResponseB.status()).toBe(200)
     await page.waitForTimeout(500)
+
+    // Complete onboarding for User B
+    await page.click('button:has-text("Continue to Step 3")')
+    await page.click('button:has-text("Continue to Step 4")')
+    await page.click('button:has-text("Continue to Step 5")')
+    await page.click('button:has-text("Complete Onboarding")')
+    await expect(page.locator('text=Your career profile is ready!')).toBeVisible({ timeout: 15000 })
 
     // Verify User B profile
     await page.goto('/profile')

@@ -62,7 +62,9 @@ test.describe('4. Data Mining and Analytics Workflows', () => {
 
       // Step 5 Complete
       await page.click('button:has-text("Complete Onboarding")')
-      await page.waitForTimeout(1000)
+      await expect(page.locator('text=Your career profile is ready!')).toBeVisible({ timeout: 15000 })
+      await page.click('a:has-text("Explore my dashboard")')
+      await page.waitForURL(/\/dashboard/, { timeout: 10000 })
     }
 
     // 2. Test Dashboard

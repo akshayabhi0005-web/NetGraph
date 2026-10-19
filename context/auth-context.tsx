@@ -21,15 +21,15 @@ interface AuthContextType {
   login: (
     email: string,
     password: string
-  ) => Promise<{ success: boolean; error?: string; isDatabaseUnavailable?: boolean }>
+  ) => Promise<{ success: boolean; user?: UserProfile; error?: string; isDatabaseUnavailable?: boolean }>
   signup: (
     name: string,
     email: string,
     password: string
-  ) => Promise<{ success: boolean; error?: string; isDatabaseUnavailable?: boolean }>
+  ) => Promise<{ success: boolean; user?: UserProfile; error?: string; isDatabaseUnavailable?: boolean }>
   loginDemo: () => Promise<void>
   logout: () => Promise<void>
-  updateProfile: (updates: Partial<UserProfile>) => void
+  updateProfile: (updates: Partial<UserProfile>) => Promise<void>
   refreshSession: () => Promise<void>
   refreshProfile: () => Promise<void>
 }
@@ -96,7 +96,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setAuthMode('server')
       setServerStatus('ready')
       setIsLoading(false)
-      return { success: true }
+      return { success: true, user: result.data.user }
     }
 
     setIsLoading(false)
@@ -123,7 +123,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setAuthMode('server')
       setServerStatus('ready')
       setIsLoading(false)
-      return { success: true }
+      return { success: true, user: result.data.user }
     }
 
     setIsLoading(false)
@@ -193,7 +193,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   /**
    * Profile updater with local reactivity and PostgreSQL persistence
    */
-  const updateProfile = (updates: Partial<UserProfile>) => {
+  const updateProfile = async (updates: Partial<UserProfile>): Promise<void> => {
     setUser((prev) => {
       if (!prev) return null
       const updated = { ...prev, ...updates }
@@ -218,8 +218,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         updates.onboardingStep !== undefined
 
       if (hasPersonalFields) {
-        profileClient
-          .updateProfile({
+        try {
+          const res = await profileClient.updateProfile({
             name: updates.name,
             headline: updates.headline,
             location: updates.location,
@@ -232,9 +232,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             onboarded: updates.onboarded,
             onboardingStep: updates.onboardingStep,
           })
-          .catch((err) => {
-            console.error('Failed to sync profile update to server:', err)
-          })
+
+          if (!res.success) {
+            console.error('Failed to sync profile update to server:', res.error)
+            throw new Error(res.error || 'Failed to update profile on server')
+          }
+        } catch (err) {
+          console.error('Failed to sync profile update to server:', err)
+          throw err
+        }
       }
     }
   }

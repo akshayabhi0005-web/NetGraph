@@ -22,16 +22,20 @@ test.describe('2. Onboarding and Profile Workflows', () => {
     await page.check('input[type="checkbox"]')
     await page.click('button[type="submit"]')
 
-    await page.waitForURL(/\/(onboarding|dashboard)/, { timeout: 15000 })
-    if (page.url().includes('/dashboard')) {
-      await page.goto('/onboarding')
-    }
+    await page.waitForURL(/\/onboarding/, { timeout: 15000 })
+    expect(page.url()).toContain('/onboarding')
+
+    // 2. Verify un-onboarded user is barred from direct /dashboard access
+    await page.goto('/dashboard')
+    await page.waitForURL(/\/onboarding/, { timeout: 10000 })
+    expect(page.url()).toContain('/onboarding')
     await page.waitForLoadState('networkidle')
 
     // STEP 1: Personal info
     await expect(page.getByRole('heading', { name: 'Personal & Professional Essentials' })).toBeVisible()
     await page.fill('input#full-name', testName)
     await page.fill('input#headline', 'Full Stack Graph Intelligence Specialist')
+    await page.fill('input#career-goal', 'Lead Machine Learning Engineer')
     await page.fill('input#location', 'Seattle, WA')
     await page.fill('textarea#summary', 'Specializing in knowledge graphs and predictive data mining.')
     await page.click('button:has-text("Continue to Step 2")')
@@ -77,10 +81,17 @@ test.describe('2. Onboarding and Profile Workflows', () => {
 
     // STEP 5: Review & Complete
     await expect(page.getByRole('heading', { name: 'Review Your Career Profile' })).toBeVisible()
+    await expect(page.locator('body')).toContainText('Lead Machine Learning Engineer')
     await page.click('button:has-text("Complete Onboarding")')
 
     // Confirm completion message
-    await expect(page.locator('text=Your career profile is ready!')).toBeVisible({ timeout: 10000 })
+    await expect(page.locator('text=Your career profile is ready!')).toBeVisible({ timeout: 15000 })
+
+    // Explore dashboard now that onboarding is complete
+    await page.click('a:has-text("Explore my dashboard")')
+    await page.waitForURL(/\/dashboard/, { timeout: 10000 })
+    expect(page.url()).toContain('/dashboard')
+    await expect(page.locator('body')).toContainText('Good morning, Jordan')
 
     // Navigate to profile
     await page.goto('/profile')

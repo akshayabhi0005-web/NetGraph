@@ -60,8 +60,11 @@ export default function OnboardingPage() {
   const [headline, setHeadline] = useState('')
   const [location, setLocation] = useState('')
   const [summary, setSummary] = useState('')
+  const [careerGoal, setCareerGoal] = useState('')
   const [linkedinUrl, setLinkedinUrl] = useState('')
   const [githubUrl, setGithubUrl] = useState('')
+  const [isSaving, setIsSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
 
   // Step 2: Education
   const [educationList, setEducationList] = useState<EducationEntry[]>([])
@@ -122,6 +125,7 @@ export default function OnboardingPage() {
       if (user.headline) setHeadline(user.headline)
       if (user.location) setLocation(user.location)
       if (user.summary) setSummary(user.summary)
+      if (user.careerGoal) setCareerGoal(user.careerGoal)
       if (user.linkedinUrl) setLinkedinUrl(user.linkedinUrl)
       if (user.githubUrl) setGithubUrl(user.githubUrl)
 
@@ -225,6 +229,7 @@ export default function OnboardingPage() {
         headline: headline.trim(),
         location: location.trim(),
         summary: summary.trim(),
+        careerGoal: careerGoal.trim(),
         linkedinUrl: linkedinUrl.trim(),
         githubUrl: githubUrl.trim(),
         education: educationList,
@@ -233,6 +238,9 @@ export default function OnboardingPage() {
         projects: projectsList,
         experience: experienceList,
         certifications: certificationsList,
+        onboardingStep: Math.min(5, currentStep + 1),
+      }).catch((err) => {
+        console.warn('Draft auto-save warning:', err)
       })
       setCurrentStep((prev) => Math.min(5, prev + 1))
       window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -246,87 +254,112 @@ export default function OnboardingPage() {
   }
 
   // Final Complete
-  const handleComplete = () => {
-    updateProfile({
-      name: fullName.trim() || user?.name || 'Explorer User',
-      headline: headline.trim(),
-      location: location.trim(),
-      summary: summary.trim(),
-      linkedinUrl: linkedinUrl.trim(),
-      githubUrl: githubUrl.trim(),
-      education: educationList,
-      skillsList: skillsList,
-      skills: skillsList.map((s) => s.name),
-      projects: projectsList,
-      experience: experienceList,
-      certifications: certificationsList,
-      onboarded: true,
-    })
+  const handleComplete = async () => {
+    setIsSaving(true)
+    setSaveError(null)
 
-    if (authMode === 'server') {
-      for (const edu of educationList) {
-        profileClient
-          .addEducation({
-            institution: edu.institution,
-            degree: edu.degree,
-            fieldOfStudy: edu.fieldOfStudy,
-            startYear: parseInt(String(edu.startYear)) || 2020,
-            graduationYear:
-              edu.graduationYear === 'Present'
-                ? new Date().getFullYear()
-                : parseInt(String(edu.graduationYear)) || new Date().getFullYear(),
-            coursework: edu.coursework,
-          })
-          .catch(() => {})
+    try {
+      await updateProfile({
+        name: fullName.trim() || user?.name || 'Explorer User',
+        headline: headline.trim(),
+        location: location.trim(),
+        summary: summary.trim(),
+        careerGoal: careerGoal.trim(),
+        linkedinUrl: linkedinUrl.trim(),
+        githubUrl: githubUrl.trim(),
+        education: educationList,
+        skillsList: skillsList,
+        skills: skillsList.map((s) => s.name),
+        projects: projectsList,
+        experience: experienceList,
+        certifications: certificationsList,
+        onboarded: true,
+        onboardingStep: 5,
+      })
+
+      if (authMode === 'server') {
+        const eduPromises = educationList.map((edu) =>
+          profileClient
+            .addEducation({
+              institution: edu.institution,
+              degree: edu.degree,
+              fieldOfStudy: edu.fieldOfStudy,
+              startYear: parseInt(String(edu.startYear)) || 2020,
+              graduationYear:
+                edu.graduationYear === 'Present'
+                  ? new Date().getFullYear()
+                  : parseInt(String(edu.graduationYear)) || new Date().getFullYear(),
+              coursework: edu.coursework,
+            })
+            .catch(() => {})
+        )
+        const skillPromises = skillsList.map((sk) =>
+          profileClient
+            .addOrUpdateSkill({
+              name: sk.name,
+              category: sk.category,
+              proficiency: sk.proficiency,
+              yearsOfExperience: sk.yearsOfExperience,
+            })
+            .catch(() => {})
+        )
+        const expPromises = experienceList.map((exp) =>
+          profileClient
+            .addExperience({
+              company: exp.company,
+              jobTitle: exp.jobTitle,
+              employmentType: exp.employmentType,
+              startDate: exp.startDate,
+              endDate: exp.endDate,
+              isCurrent: exp.isCurrent,
+              description: exp.description,
+              technologies: exp.technologies,
+            })
+            .catch(() => {})
+        )
+        const projPromises = projectsList.map((proj) =>
+          profileClient
+            .addProject({
+              title: proj.title,
+              description: proj.description,
+              technologies: proj.technologies,
+              projectUrl: proj.projectUrl,
+              githubUrl: proj.githubUrl,
+            })
+            .catch(() => {})
+        )
+        const certPromises = certificationsList.map((cert) =>
+          profileClient
+            .addCertification({
+              name: cert.name,
+              issuer: cert.issuer,
+              issueDate: cert.issueDate,
+              credentialUrl: cert.credentialUrl,
+            })
+            .catch(() => {})
+        )
+
+        // Non-blocking sync for entity records
+        Promise.allSettled([
+          ...eduPromises,
+          ...skillPromises,
+          ...expPromises,
+          ...projPromises,
+          ...certPromises,
+        ]).catch(() => {})
       }
-      for (const sk of skillsList) {
-        profileClient
-          .addOrUpdateSkill({
-            name: sk.name,
-            category: sk.category,
-            proficiency: sk.proficiency,
-            yearsOfExperience: sk.yearsOfExperience,
-          })
-          .catch(() => {})
-      }
-      for (const exp of experienceList) {
-        profileClient
-          .addExperience({
-            company: exp.company,
-            jobTitle: exp.jobTitle,
-            employmentType: exp.employmentType,
-            startDate: exp.startDate,
-            endDate: exp.endDate,
-            isCurrent: exp.isCurrent,
-            description: exp.description,
-            technologies: exp.technologies,
-          })
-          .catch(() => {})
-      }
-      for (const proj of projectsList) {
-        profileClient
-          .addProject({
-            title: proj.title,
-            description: proj.description,
-            technologies: proj.technologies,
-            projectUrl: proj.projectUrl,
-            githubUrl: proj.githubUrl,
-          })
-          .catch(() => {})
-      }
-      for (const cert of certificationsList) {
-        profileClient
-          .addCertification({
-            name: cert.name,
-            issuer: cert.issuer,
-            issueDate: cert.issueDate,
-            credentialUrl: cert.credentialUrl,
-          })
-          .catch(() => {})
-      }
+
+      setIsCompleted(true)
+    } catch (err: unknown) {
+      console.error('Failed to complete onboarding:', err)
+      setSaveError(
+        err instanceof Error
+          ? err.message
+          : 'Failed to complete profile onboarding. Please verify your connection and try again.'
+      )
+    } finally {
+      setIsSaving(false)
     }
-
-    setIsCompleted(true)
   }
 
   // Education helpers
@@ -632,12 +665,18 @@ export default function OnboardingPage() {
         ) : (
           <div>
             <div className="flex items-center justify-between">
-              <Link
-                href="/dashboard"
-                className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
-              >
-                <ArrowLeft className="size-4" /> Save & exit to workspace
-              </Link>
+              {user?.onboarded ? (
+                <Link
+                  href="/dashboard"
+                  className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
+                >
+                  <ArrowLeft className="size-4" /> Back to dashboard
+                </Link>
+              ) : (
+                <span className="inline-flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                  Step {currentStep} of 5 &bull; Complete profile setup to unlock dashboard
+                </span>
+              )}
             </div>
 
             {/* STEP 1: PERSONAL INFORMATION */}
@@ -699,6 +738,19 @@ export default function OnboardingPage() {
                         placeholder="e.g. Toronto, Canada"
                       />
                     </div>
+                  </div>
+
+                  <div className="flex flex-col gap-2">
+                    <Label htmlFor="career-goal">Target Career Goal / Desired Role</Label>
+                    <Input
+                      id="career-goal"
+                      value={careerGoal}
+                      onChange={(e) => setCareerGoal(e.target.value)}
+                      placeholder="e.g. Machine Learning Engineer, Data Scientist, Full Stack Developer"
+                    />
+                    <span className="text-[11px] text-muted-foreground">
+                      Helps NETGRAPH prioritize relevant network nodes, career paths, and association rules.
+                    </span>
                   </div>
 
                   <div className="flex flex-col gap-2">
@@ -1356,6 +1408,14 @@ export default function OnboardingPage() {
                   </p>
                 </div>
 
+                {/* Save Error Alert */}
+                {saveError && (
+                  <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
+                    <p className="font-semibold">Unable to complete onboarding</p>
+                    <p className="mt-1">{saveError}</p>
+                  </div>
+                )}
+
                 {/* Data Quality & Mining Health Summary */}
                 <DataQualityCard
                   profile={{
@@ -1363,6 +1423,7 @@ export default function OnboardingPage() {
                     headline,
                     location,
                     summary,
+                    careerGoal,
                     linkedinUrl,
                     githubUrl,
                     education: educationList,
@@ -1386,6 +1447,7 @@ export default function OnboardingPage() {
                   <div className="mt-4 grid gap-2 sm:grid-cols-2 text-sm">
                     <div><span className="text-muted-foreground text-xs block">Full Name:</span> <span className="font-medium">{fullName}</span></div>
                     <div><span className="text-muted-foreground text-xs block">Headline:</span> <span className="font-medium">{headline || 'Not provided'}</span></div>
+                    <div><span className="text-muted-foreground text-xs block">Career Goal:</span> <span className="font-medium">{careerGoal || 'Not specified'}</span></div>
                     <div><span className="text-muted-foreground text-xs block">Location:</span> <span className="font-medium">{location || 'Not provided'}</span></div>
                     <div><span className="text-muted-foreground text-xs block">Email:</span> <span className="font-medium">{user?.email}</span></div>
                   </div>
@@ -1493,8 +1555,22 @@ export default function OnboardingPage() {
                   Continue to Step {currentStep + 1} <ArrowRight className="ml-2 size-4" />
                 </Button>
               ) : (
-                <Button type="button" onClick={handleComplete} className="rounded-full bg-slate-950 hover:bg-indigo-700 text-white px-8">
-                  <Sparkles className="mr-2 size-4" /> Complete Onboarding
+                <Button
+                  type="button"
+                  onClick={handleComplete}
+                  disabled={isSaving}
+                  className="rounded-full bg-slate-950 hover:bg-indigo-700 text-white px-8"
+                >
+                  {isSaving ? (
+                    <>
+                      <div className="mr-2 size-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                      Finalizing profile...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="mr-2 size-4" /> Complete Onboarding
+                    </>
+                  )}
                 </Button>
               )}
             </div>

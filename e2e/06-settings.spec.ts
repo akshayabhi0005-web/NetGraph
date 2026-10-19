@@ -24,6 +24,17 @@ test.describe('6. Settings and Account Management Workflows', () => {
 
     await page.waitForURL(/\/(onboarding|dashboard)/, { timeout: 15000 })
 
+    if (page.url().includes('/onboarding')) {
+      await page.fill('input#full-name', name)
+      await page.fill('input#headline', 'Systems Configuration Lead')
+      await page.click('button:has-text("Continue to Step 2")')
+      await page.click('button:has-text("Continue to Step 3")')
+      await page.click('button:has-text("Continue to Step 4")')
+      await page.click('button:has-text("Continue to Step 5")')
+      await page.click('button:has-text("Complete Onboarding")')
+      await expect(page.locator('text=Your career profile is ready!')).toBeVisible({ timeout: 15000 })
+    }
+
     // 2. Navigate to settings
     await page.goto('/settings')
     await page.waitForLoadState('networkidle')
