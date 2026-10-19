@@ -44,6 +44,12 @@ export async function POST(req: NextRequest) {
 
     const normalizedEmail = validated.email.toLowerCase().trim()
 
+    // 3. Account-level Rate Limiting (5 attempts per minute per email)
+    const emailRateLimit = checkRateLimit(`login:email:${normalizedEmail}`, 5, 60 * 1000)
+    if (!emailRateLimit.allowed) {
+      return apiError('Too many failed login attempts for this account. Please wait a minute before trying again.', 429, 'RATE_LIMIT_EXCEEDED')
+    }
+
     const user = await prisma.user.findUnique({
       where: { email: normalizedEmail },
       include: {

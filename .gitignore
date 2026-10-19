@@ -22,3 +22,7 @@ node_modules
 .DS_Store
 *.tsbuildinfo
 next-env.d.ts
+
+# Test reports & artifacts
+playwright-report/
+test-results/

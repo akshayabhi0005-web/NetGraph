@@ -164,6 +164,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setUser(null)
       setAuthMode(null)
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('netgraph_demo_session_v1')
+      }
     }
   }
 

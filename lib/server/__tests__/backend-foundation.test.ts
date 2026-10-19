@@ -30,6 +30,7 @@ import {
 } from '../validation'
 import { apiSuccess, apiError, handleApiError } from '../api-response'
 import { isDatabaseConfigured } from '../prisma'
+import { validateEnvironment, assertProductionEnvironment } from '../env'
 import { ZodError } from 'zod'
 
 let passedCount = 0
@@ -404,6 +405,87 @@ async function main() {
     assert.notStrictEqual(userA_clause.where.userId, userB_clause.where.userId)
     assert.strictEqual(userA_clause.where.userId, userA_Id)
     // Proves that User A cannot target User B's records because userId is strictly constrained
+  })
+
+  // 10. Production Environment Configuration Validation
+  runTest('10.1 validateEnvironment validates DATABASE_URL and production AUTH_SECRET rules', () => {
+    const envObj = process.env as Record<string, string | undefined>
+    const originalEnv = envObj.NODE_ENV
+    const originalSecret = process.env.AUTH_SECRET
+
+    try {
+      // Test missing AUTH_SECRET in production
+      envObj.NODE_ENV = 'production'
+      delete process.env.AUTH_SECRET
+      const invalidResult = validateEnvironment()
+      assert.strictEqual(invalidResult.valid, false)
+      assert.ok(invalidResult.errors.some(e => e.includes('AUTH_SECRET is required')))
+
+      // Test placeholder AUTH_SECRET in production
+      process.env.AUTH_SECRET = 'change-this-to-a-secure-random-secret-in-production'
+      const placeholderResult = validateEnvironment()
+      assert.strictEqual(placeholderResult.valid, false)
+      assert.ok(placeholderResult.errors.some(e => e.includes('cryptographically secure')))
+
+      // Test valid high-entropy AUTH_SECRET in production
+      process.env.AUTH_SECRET = 'd41d8cd98f00b204e9800998ecf8427e_secure_random_key_production'
+      const validResult = validateEnvironment()
+      assert.strictEqual(validResult.valid, true)
+    } finally {
+      envObj.NODE_ENV = originalEnv
+      if (originalSecret !== undefined) {
+        process.env.AUTH_SECRET = originalSecret
+      } else {
+        delete process.env.AUTH_SECRET
+      }
+    }
+  })
+
+  runTest('10.2 assertProductionEnvironment throws safely without leaking secrets', () => {
+    const envObj = process.env as Record<string, string | undefined>
+    const originalEnv = envObj.NODE_ENV
+    const originalSecret = process.env.AUTH_SECRET
+
+    try {
+      envObj.NODE_ENV = 'production'
+      delete process.env.AUTH_SECRET
+
+      let threw = false
+      try {
+        assertProductionEnvironment()
+      } catch (err: any) {
+        threw = true
+        assert.ok(err.message.includes('CRITICAL CONFIGURATION ERROR'))
+        // Confirms no secret or password values are leaked in the error
+        assert.ok(!err.message.includes('ep-shy-cake'))
+      }
+      assert.strictEqual(threw, true, 'assertProductionEnvironment must throw on missing required prod env vars')
+    } finally {
+      envObj.NODE_ENV = originalEnv
+      if (originalSecret !== undefined) {
+        process.env.AUTH_SECRET = originalSecret
+      } else {
+        delete process.env.AUTH_SECRET
+      }
+    }
+  })
+
+  // 11. Rate Limiting Multi-Layer Protection (IP + Account-Level)
+  runTest('11.1 Account-level rate limiter prevents brute-force across rotating IPs', () => {
+    resetRateLimit()
+    const targetEmail = 'target.user@example.com'
+
+    // First 5 attempts allowed
+    for (let i = 1; i <= 5; i++) {
+      const res = checkRateLimit(`login:email:${targetEmail}`, 5, 60000)
+      assert.strictEqual(res.allowed, true, `Attempt ${i} must be allowed`)
+    }
+
+    // 6th attempt rejected
+    const blocked = checkRateLimit(`login:email:${targetEmail}`, 5, 60000)
+    assert.strictEqual(blocked.allowed, false, '6th attempt must be rejected by account-level rate limiter')
+    assert.strictEqual(blocked.remaining, 0)
+    resetRateLimit()
   })
 
   console.log('\n------------------------------------------------------')

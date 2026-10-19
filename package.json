@@ -5,9 +5,10 @@
   "packageManager": "pnpm@12.3.4",
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "prisma generate && next build",
     "start": "next start",
-    "test": "npx tsx lib/data-mining/__tests__/mining.test.ts && npx tsx lib/data-mining/__tests__/report.test.ts && npx tsx lib/data-mining/__tests__/validation.test.ts && npx tsx lib/data-mining/__tests__/integration-regression.test.ts && npx tsx lib/server/__tests__/backend-foundation.test.ts && npx tsx lib/__tests__/frontend-auth-integration.test.ts && npx tsx lib/__tests__/profile-db-integration.test.ts && npx tsx lib/__tests__/data-mining-engine-integration.test.ts && npx tsx lib/__tests__/e2e-user-journey-reliability.test.ts && npx tsx lib/__tests__/live-neon-db-integration.test.ts"
+    "test": "npx tsx lib/data-mining/__tests__/mining.test.ts && npx tsx lib/data-mining/__tests__/report.test.ts && npx tsx lib/data-mining/__tests__/validation.test.ts && npx tsx lib/data-mining/__tests__/integration-regression.test.ts && npx tsx lib/server/__tests__/backend-foundation.test.ts && npx tsx lib/__tests__/frontend-auth-integration.test.ts && npx tsx lib/__tests__/profile-db-integration.test.ts && npx tsx lib/__tests__/data-mining-engine-integration.test.ts && npx tsx lib/__tests__/e2e-user-journey-reliability.test.ts && npx tsx lib/__tests__/live-neon-db-integration.test.ts",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",

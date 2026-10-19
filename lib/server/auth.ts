@@ -12,6 +12,7 @@
 import crypto from 'node:crypto'
 import { cookies } from 'next/headers'
 import { prisma, isDatabaseConfigured } from './prisma'
+import { assertProductionEnvironment } from './env'
 import { User, UserProfile, UserSettings, Education, Skill, Project, Experience, Certification } from '@prisma/client'
 
 export const SESSION_COOKIE_NAME = 'netgraph_session'
@@ -74,6 +75,7 @@ export function generateSessionToken(): string {
  * Creates a database session record for the user and returns the token
  */
 export async function createDatabaseSession(userId: string): Promise<string> {
+  assertProductionEnvironment()
   const token = generateSessionToken()
   const expiresAt = new Date(Date.now() + SESSION_EXPIRY_DAYS * 24 * 60 * 60 * 1000)
 
@@ -119,28 +121,38 @@ export function verifyCsrfOrigin(req: Request): boolean {
   }
 
   const origin = req.headers.get('origin')
-  const host = req.headers.get('host')
+  const host = req.headers.get('x-forwarded-host') || req.headers.get('host')
+  const referer = req.headers.get('referer')
 
-  if (!origin) {
-    const referer = req.headers.get('referer')
-    if (!referer) {
-      // In non-browser environments or automated testing where no origin is attached, allow
-      return true
-    }
+  const isMatchingHost = (candidateUrlStr: string): boolean => {
     try {
-      const refererUrl = new URL(referer)
-      return !host || refererUrl.host === host
+      const candidateUrl = new URL(candidateUrlStr)
+      if (host && candidateUrl.host.toLowerCase() === host.toLowerCase()) return true
+      if (process.env.NEXT_PUBLIC_APP_URL) {
+        const appUrl = new URL(process.env.NEXT_PUBLIC_APP_URL)
+        if (candidateUrl.host.toLowerCase() === appUrl.host.toLowerCase()) return true
+      }
+      return false
     } catch {
       return false
     }
   }
 
-  try {
-    const originUrl = new URL(origin)
-    return !host || originUrl.host === host
-  } catch {
+  if (origin) {
+    return isMatchingHost(origin)
+  }
+
+  if (referer) {
+    return isMatchingHost(referer)
+  }
+
+  // In production, browser cookie mutations without Origin or Referer are rejected
+  if (process.env.NODE_ENV === 'production') {
     return false
   }
+
+  // In development and test environments, allow requests without origin/referer
+  return true
 }
 
 /**
