@@ -6,8 +6,20 @@ import { AppShell } from '@/components/app-shell'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { useCareerAnalysis } from '@/hooks/use-career-analysis'
-import { buildCareerIntelligenceReport } from '@/lib/report-generator'
+import {
+  buildCareerIntelligenceReport,
+  getReportPdfFilename,
+} from '@/lib/report-generator'
 import { downloadReportPdf } from '@/lib/report-pdf-generator'
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  Cell,
+} from 'recharts'
 import {
   Download,
   RefreshCw,
@@ -30,12 +42,30 @@ import {
   Target,
   Calendar,
   Layers,
+  FileText,
+  Code,
+  Compass,
+  GitCompare,
+  BarChart3,
+  FileDown,
 } from 'lucide-react'
 
+const ROLE_BAR_COLORS = [
+  '#4f46e5',
+  '#6366f1',
+  '#818cf8',
+  '#0ea5e9',
+  '#06b6d4',
+  '#10b981',
+  '#8b5cf6',
+  '#a855f7',
+]
+
 export default function ReportsPage() {
-  const { user, analysis } = useCareerAnalysis()
+  const { user, analysis, authMode, isDemoData } = useCareerAnalysis()
   const [isGenerating, setIsGenerating] = useState(false)
   const [isDownloading, setIsDownloading] = useState(false)
+  const [isExportingJson, setIsExportingJson] = useState(false)
   const [downloadSuccess, setDownloadSuccess] = useState<string | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [lastGeneratedAt, setLastGeneratedAt] = useState<string | null>(null)
@@ -59,7 +89,77 @@ export default function ReportsPage() {
     )
   }, [report.careerMatches.topMatches, targetRole])
 
-  // Handle "Generate Report" action
+  // Chart data for visual comparison of career role alignment
+  const roleChartData = useMemo(() => {
+    return report.careerMatches.topMatches.map((m) => ({
+      name: m.roleTitle,
+      score: m.matchScore,
+      category: m.category,
+      matchedCount: m.matchedSkills.length,
+      missingCount: m.missingRequiredSkills.length,
+    }))
+  }, [report.careerMatches.topMatches])
+
+  // Career Readiness Assessment derived from actual profile metrics
+  const readinessAssessment = useMemo(() => {
+    const topRole = report.careerMatches.topMatches[0]
+    if (!report.metadata.hasData || !topRole) {
+      return {
+        tier: 'Insufficient Profile Data',
+        color: 'text-slate-500',
+        bg: 'bg-slate-50 border-slate-200',
+        summary: 'Add skills, projects, and work history to calculate genuine career readiness.',
+      }
+    }
+    const score = topRole.matchScore
+    const completeness = report.metadata.profileCompletenessScore
+    const gaps = report.skillGaps.highPriorityCount
+
+    if (score >= 70 && completeness >= 60) {
+      return {
+        tier: 'High Pathway Readiness',
+        color: 'text-emerald-700',
+        bg: 'bg-emerald-50 border-emerald-200',
+        summary: `Strong alignment with ${topRole.roleTitle} (${score}% requirement coverage). Profile possesses foundational and specialized capabilities.`,
+      }
+    } else if (score >= 45 || completeness >= 40) {
+      return {
+        tier: 'Developing Pathway Alignment',
+        color: 'text-indigo-700',
+        bg: 'bg-indigo-50 border-indigo-200',
+        summary: `Moderate alignment with ${topRole.roleTitle} (${score}% match). ${gaps} high-priority skill gap${gaps === 1 ? '' : 's'} to address before requirement parity.`,
+      }
+    } else {
+      return {
+        tier: 'Foundational Exploration',
+        color: 'text-amber-700',
+        bg: 'bg-amber-50 border-amber-200',
+        summary: `Early-stage profile. Top evaluated alignment is ${topRole.roleTitle} (${score}%). Expanding technical project portfolio will significantly improve alignment scores.`,
+      }
+    }
+  }, [report])
+
+  // Missing profile items checklist
+  const missingProfileItems = useMemo(() => {
+    const missing: { label: string; link: string }[] = []
+    if (!user?.headline) missing.push({ label: 'Professional headline', link: '/profile' })
+    if (!user?.summary) missing.push({ label: 'Career summary', link: '/profile' })
+    if (!user?.projects || user.projects.length === 0) {
+      missing.push({ label: 'Portfolio project implementations', link: '/profile' })
+    }
+    if (!user?.experience || user.experience.length === 0) {
+      missing.push({ label: 'Work experience / internships', link: '/profile' })
+    }
+    if (!user?.education || user.education.length === 0) {
+      missing.push({ label: 'Academic education records', link: '/profile' })
+    }
+    if (report.skills.totalSkills < 5) {
+      missing.push({ label: 'At least 5 cataloged skills', link: '/skills' })
+    }
+    return missing
+  }, [user, report.skills.totalSkills])
+
+  // Handle "Generate / Refresh Report" action
   const handleGenerateReport = async () => {
     if (!report.metadata.hasData) {
       setErrorMessage('Cannot generate report: Please add skills, projects, or experience to your profile first.')
@@ -71,13 +171,13 @@ export default function ReportsPage() {
     setDownloadSuccess(null)
 
     // Simulate reactive regeneration with UI feedback
-    await new Promise((resolve) => setTimeout(resolve, 500))
+    await new Promise((resolve) => setTimeout(resolve, 400))
 
     setLastGeneratedAt(new Date().toLocaleTimeString())
     setIsGenerating(false)
   }
 
-  // Handle genuine downloadable PDF report
+  // Handle genuine downloadable PDF report with date-based filename convention
   const handleDownloadPdf = async () => {
     if (!report.metadata.hasData) {
       setErrorMessage('Cannot generate PDF: Please add skills or experience to your profile first.')
@@ -91,7 +191,7 @@ export default function ReportsPage() {
       // Allow UI thread to show loading state
       await new Promise((resolve) => setTimeout(resolve, 80))
 
-      const pdfFilename = 'NETGRAPH_Career_Intelligence_Report.pdf'
+      const pdfFilename = getReportPdfFilename(report.metadata.generatedAt)
       downloadReportPdf(report, pdfFilename)
 
       setDownloadSuccess(`Downloaded "${pdfFilename}" successfully!`)
@@ -106,42 +206,102 @@ export default function ReportsPage() {
     }
   }
 
+  // Handle downloadable JSON report for researchers and data analysis
+  const handleDownloadJson = () => {
+    if (!report.metadata.hasData) {
+      setErrorMessage('Cannot export JSON: Please add profile data first.')
+      return
+    }
+
+    try {
+      setIsExportingJson(true)
+      const filename = getReportPdfFilename(report.metadata.generatedAt).replace('.pdf', '.json')
+      const jsonBlob = new Blob([JSON.stringify(report, null, 2)], {
+        type: 'application/json;charset=utf-8',
+      })
+      const url = URL.createObjectURL(jsonBlob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = filename
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      setTimeout(() => URL.revokeObjectURL(url), 1000)
+
+      setDownloadSuccess(`Exported "${filename}" successfully!`)
+      setTimeout(() => setDownloadSuccess(null), 5000)
+    } catch (err: unknown) {
+      console.error('JSON Export Error:', err)
+      setErrorMessage(
+        err instanceof Error ? err.message : 'Failed to export report JSON data.'
+      )
+    } finally {
+      setIsExportingJson(false)
+    }
+  }
+
   return (
     <AppShell title="Career Intelligence Reports">
       <div className="mx-auto max-w-5xl space-y-8 pb-16">
-        {/* A. Reports Page Header */}
+        {/* A. Reports Center Header */}
         <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
           <div>
-            <Badge variant="secondary" className="rounded-full bg-indigo-50 text-indigo-700">
-              <Sparkles className="size-3 mr-1" />
-              Functional Intelligence Reporting
-            </Badge>
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant="secondary" className="rounded-full bg-indigo-50 text-indigo-700">
+                <Sparkles className="size-3 mr-1" />
+                Advanced Report Center
+              </Badge>
+              {isDemoData ? (
+                <Badge variant="secondary" className="rounded-full bg-slate-100 text-slate-700 border-slate-200">
+                  Demo Dataset
+                </Badge>
+              ) : authMode === 'server' ? (
+                <Badge variant="secondary" className="rounded-full bg-emerald-50 text-emerald-700 border-emerald-200">
+                  Live Database Profile
+                </Badge>
+              ) : null}
+            </div>
             <h1 className="mt-3 text-3xl font-semibold tracking-[-.05em] text-foreground md:text-4xl">
-              Career Intelligence Reports
+              Career Intelligence Report
             </h1>
             <p className="mt-2 text-sm text-muted-foreground max-w-2xl">
-              Turn your skills, projects, and experience into actionable career insights.
+              Deterministic career matching, Apriori association analysis, and prioritized action plan compiled from your verified profile competencies.
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2.5">
             <Button
               onClick={handleGenerateReport}
-              disabled={isGenerating || !report.metadata.hasData}
+              disabled={isGenerating || isDownloading || isExportingJson || !report.metadata.hasData}
               className="rounded-full bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs cursor-pointer"
+              aria-label="Refresh career intelligence report"
             >
               <RefreshCw className={`size-4 mr-2 ${isGenerating ? 'animate-spin' : ''}`} />
-              {isGenerating ? 'Generating Report...' : 'Generate Report'}
+              {isGenerating ? 'Updating...' : 'Refresh Report'}
             </Button>
 
             <Button
               variant="outline"
               onClick={handleDownloadPdf}
-              disabled={isDownloading || !report.metadata.hasData}
+              disabled={isDownloading || isGenerating || isExportingJson || !report.metadata.hasData}
               className="rounded-full border-border bg-card hover:bg-muted cursor-pointer"
+              aria-label="Download career intelligence report as PDF document"
             >
               <Download className={`size-4 mr-2 ${isDownloading ? 'animate-pulse' : ''}`} />
-              {isDownloading ? 'Downloading PDF...' : 'Download PDF'}
+              {isDownloading ? 'Building PDF...' : 'Download PDF'}
+            </Button>
+
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleDownloadJson}
+              disabled={isExportingJson || isDownloading || isGenerating || !report.metadata.hasData}
+              className="rounded-full text-xs text-muted-foreground hover:text-foreground cursor-pointer"
+              aria-label="Export raw intelligence report data in JSON format"
+              title="Export report structured data as JSON"
+            >
+              <FileDown className="size-3.5 mr-1" />
+              JSON
             </Button>
           </div>
         </div>
@@ -168,67 +328,107 @@ export default function ReportsPage() {
           </div>
         )}
 
-        {/* Data Quality Notice */}
+        {/* Data Quality & Limitations Notice */}
         {report.limitations.warnings.length > 0 && report.metadata.hasData && (
           <div className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50/70 p-4 text-xs text-amber-900">
             <AlertTriangle className="size-4 shrink-0 text-amber-600 mt-0.5" />
             <div>
-              <p className="font-semibold text-amber-950">Report Data Quality Note:</p>
-              <p className="mt-0.5 text-amber-800 leading-relaxed">
-                {report.limitations.warnings.join(' ')}
+              <p className="font-semibold text-amber-950">Report Data Quality & Sample Size Notice:</p>
+              <ul className="mt-1 list-disc list-inside space-y-0.5 text-amber-800">
+                {report.limitations.warnings.map((w, idx) => (
+                  <li key={idx}>{w}</li>
+                ))}
+              </ul>
+              <p className="mt-2 text-[11px] text-amber-700">
+                Current data confidence is rated <strong>{report.limitations.confidenceLevel.toUpperCase()}</strong>. Adding more projects and work history improves statistical confidence.
               </p>
             </div>
           </div>
         )}
 
-        {/* Summary Metric Cards */}
+        {/* Report Overview & Summary KPI Cards */}
         {report.metadata.hasData && (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-            <div className="rounded-2xl border border-border bg-card p-4 shadow-xs">
-              <span className="text-xs font-medium text-muted-foreground">Profile Completeness</span>
-              <p className="mt-2 text-2xl font-bold tracking-tight text-indigo-600">
-                {report.metadata.profileCompletenessScore}%
-              </p>
-              <div className="mt-2 h-1.5 w-full bg-muted rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-indigo-600 rounded-full"
-                  style={{ width: `${report.metadata.profileCompletenessScore}%` }}
-                />
+          <div className="space-y-4">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+              <div className="rounded-2xl border border-border bg-card p-4 shadow-xs">
+                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Completeness</span>
+                <p className="mt-2 text-2xl font-bold tracking-tight text-indigo-600">
+                  {report.metadata.profileCompletenessScore}%
+                </p>
+                <div className="mt-2 h-1.5 w-full bg-muted rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-indigo-600 rounded-full"
+                    style={{ width: `${report.metadata.profileCompletenessScore}%` }}
+                  />
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-border bg-card p-4 shadow-xs">
+                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Cataloged Skills</span>
+                <p className="mt-2 text-2xl font-bold tracking-tight text-slate-900">
+                  {report.skills.totalSkills}
+                </p>
+                <p className="mt-1 text-[11px] text-emerald-600 font-medium">Verified competencies</p>
+              </div>
+
+              <div className="rounded-2xl border border-border bg-card p-4 shadow-xs">
+                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Mined Transactions</span>
+                <p className="mt-2 text-2xl font-bold tracking-tight text-slate-900">
+                  {report.relationships.totalTransactionsMined}
+                </p>
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  {report.analytics.totalProjects} projects · {report.analytics.totalExperiences} roles
+                </p>
+              </div>
+
+              <div className="rounded-2xl border border-border bg-card p-4 shadow-xs">
+                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Roles Evaluated</span>
+                <p className="mt-2 text-2xl font-bold tracking-tight text-slate-900">
+                  {report.careerMatches.totalMatchesEvaluated}
+                </p>
+                <p className="mt-1 text-[11px] text-muted-foreground">Reference catalogue</p>
+              </div>
+
+              <div className="rounded-2xl border border-border bg-card p-4 shadow-xs">
+                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Skill Gaps</span>
+                <p className="mt-2 text-2xl font-bold tracking-tight text-rose-600">
+                  {report.skillGaps.gaps.length}
+                </p>
+                <p className="mt-1 text-[11px] text-rose-600 font-medium">
+                  {report.skillGaps.highPriorityCount} high priority
+                </p>
               </div>
             </div>
 
-            <div className="rounded-2xl border border-border bg-card p-4 shadow-xs">
-              <span className="text-xs font-medium text-muted-foreground">Verified Skills</span>
-              <p className="mt-2 text-2xl font-bold tracking-tight text-slate-900">
-                {report.skills.totalSkills}
-              </p>
-              <p className="mt-1 text-[11px] text-emerald-600 font-medium">Distinct competencies</p>
-            </div>
-
-            <div className="rounded-2xl border border-border bg-card p-4 shadow-xs">
-              <span className="text-xs font-medium text-muted-foreground">Analysed Projects</span>
-              <p className="mt-2 text-2xl font-bold tracking-tight text-slate-900">
-                {report.analytics.totalProjects}
-              </p>
-              <p className="mt-1 text-[11px] text-muted-foreground">Portfolio implementations</p>
-            </div>
-
-            <div className="rounded-2xl border border-border bg-card p-4 shadow-xs">
-              <span className="text-xs font-medium text-muted-foreground">Roles Evaluated</span>
-              <p className="mt-2 text-2xl font-bold tracking-tight text-slate-900">
-                {report.careerMatches.totalMatchesEvaluated}
-              </p>
-              <p className="mt-1 text-[11px] text-muted-foreground">Industry benchmarks</p>
-            </div>
-
-            <div className="rounded-2xl border border-border bg-card p-4 shadow-xs">
-              <span className="text-xs font-medium text-muted-foreground">Skill Gaps</span>
-              <p className="mt-2 text-2xl font-bold tracking-tight text-rose-600">
-                {report.skillGaps.gaps.length}
-              </p>
-              <p className="mt-1 text-[11px] text-rose-600 font-medium">
-                {report.skillGaps.highPriorityCount} high priority
-              </p>
+            {/* Career-Readiness Assessment Summary Banner */}
+            <div className={`rounded-2xl border p-4.5 text-xs ${readinessAssessment.bg}`}>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                <div>
+                  <span className="font-bold text-[11px] uppercase tracking-wider text-muted-foreground">
+                    Career-Readiness Assessment
+                  </span>
+                  <h3 className={`mt-0.5 text-sm font-bold ${readinessAssessment.color}`}>
+                    {readinessAssessment.tier}
+                  </h3>
+                  <p className="mt-1 text-slate-700 leading-relaxed max-w-3xl">
+                    {readinessAssessment.summary}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <Button asChild size="sm" variant="outline" className="rounded-full bg-white text-xs">
+                    <Link href="/career/compare">
+                      <GitCompare className="size-3 mr-1" />
+                      Compare Paths
+                    </Link>
+                  </Button>
+                  <Button asChild size="sm" variant="outline" className="rounded-full bg-white text-xs">
+                    <Link href="/analytics">
+                      <BarChart3 className="size-3 mr-1" />
+                      View Analytics
+                    </Link>
+                  </Button>
+                </div>
+              </div>
             </div>
           </div>
         )}
@@ -431,7 +631,7 @@ export default function ReportsPage() {
             </section>
 
             {/* =========================================================================
-                SECTION 2: CAREER RECOMMENDATIONS
+                SECTION 2: CAREER ALIGNMENT & VISUAL COMPARISON
                ========================================================================= */}
             <section className="space-y-4">
               <div className="flex items-center gap-2 border-b border-border/80 pb-2">
@@ -439,13 +639,70 @@ export default function ReportsPage() {
                   2
                 </span>
                 <h3 className="text-lg font-semibold text-foreground">
-                  Career Recommendations
+                  Career Pathway Alignment
                 </h3>
                 <span className="ml-auto text-xs text-muted-foreground">
-                  Weighted requirement matching & role alignment
+                  Weighted requirement matching & visual comparison
                 </span>
               </div>
 
+              {/* Visual Alignment Comparison Chart (Recharts) */}
+              <div className="rounded-2xl border border-border bg-muted/30 p-5 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
+                      <BarChart3 className="size-3.5 text-indigo-600" />
+                      Pathway Alignment Comparison
+                    </h4>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                      Calculated alignment percentage across all evaluated reference career roles.
+                    </p>
+                  </div>
+                  <Button asChild size="sm" variant="ghost" className="text-xs text-indigo-600 hover:text-indigo-800">
+                    <Link href="/career/compare">Compare Two Paths Side-by-Side →</Link>
+                  </Button>
+                </div>
+
+                <div className="h-56 w-full pt-2">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={roleChartData}
+                      layout="vertical"
+                      margin={{ top: 5, right: 30, left: 10, bottom: 5 }}
+                    >
+                      <XAxis type="number" domain={[0, 100]} tick={{ fontSize: 11 }} tickFormatter={(v) => `${v}%`} />
+                      <YAxis
+                        type="category"
+                        dataKey="name"
+                        width={130}
+                        tick={{ fontSize: 11, fill: '#475569' }}
+                      />
+                      <Tooltip
+                        formatter={(val, name) => [
+                          val !== undefined ? `${val}%` : '—',
+                          name === 'score' ? 'Requirement Match' : String(name),
+                        ]}
+                        labelFormatter={(label) => `Role: ${label}`}
+                        contentStyle={{ borderRadius: 12, border: '1px solid #e2e8f0', fontSize: 12 }}
+                      />
+                      <Bar dataKey="score" radius={[0, 6, 6, 0]}>
+                        {roleChartData.map((_, index) => (
+                          <Cell
+                            key={`cell-${index}`}
+                            fill={ROLE_BAR_COLORS[index % ROLE_BAR_COLORS.length]}
+                          />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+
+                <p className="text-[11px] text-slate-500 pt-1 border-t border-border/60">
+                  <strong className="text-slate-700">Notice:</strong> Alignment scores are deterministic estimates derived from cataloged skills versus standard role benchmarks. Scores do not represent commercial employment screening or hiring guarantees.
+                </p>
+              </div>
+
+              {/* Career Role Cards */}
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {report.careerMatches.topMatches.map((match) => {
                   // Find user projects that connect to this role via matched technologies
@@ -572,7 +829,7 @@ export default function ReportsPage() {
             </section>
 
             {/* =========================================================================
-                SECTION 3: SKILL GAP SUMMARY
+                SECTION 3: SKILL GAP ANALYSIS
                ========================================================================= */}
             <section className="space-y-4">
               <div className="flex items-center gap-2 border-b border-border/80 pb-2">
@@ -580,7 +837,7 @@ export default function ReportsPage() {
                   3
                 </span>
                 <h3 className="text-lg font-semibold text-foreground">
-                  Skill Gap Summary
+                  Skill Gap Analysis
                 </h3>
                 <span className="ml-auto text-xs text-muted-foreground">
                   Target pathway requirements & priority action items
@@ -699,6 +956,15 @@ export default function ReportsPage() {
                       </div>
                     )}
                   </div>
+
+                  <div className="pt-2 flex flex-wrap gap-3">
+                    <Button asChild size="sm" variant="outline" className="rounded-full text-xs">
+                      <Link href="/skills">Manage Skills in Skill Analyzer →</Link>
+                    </Button>
+                    <Button asChild size="sm" variant="outline" className="rounded-full text-xs">
+                      <Link href="/career/compare">Compare with another path →</Link>
+                    </Button>
+                  </div>
                 </div>
               )}
             </section>
@@ -723,24 +989,24 @@ export default function ReportsPage() {
               <div className="rounded-xl border border-indigo-100 bg-indigo-50/60 p-4 text-xs text-indigo-900 space-y-2">
                 <p className="font-semibold flex items-center gap-1.5">
                   <Info className="size-4 text-indigo-600" />
-                  Understanding Co-Occurrence Metrics:
+                  Understanding Association & Co-Occurrence Metrics:
                 </p>
                 <div className="grid gap-2 sm:grid-cols-3 text-[11px] text-indigo-950">
-                  <div className="rounded bg-white/70 p-2 border border-indigo-100">
-                    <span className="font-bold text-indigo-900 block">Support</span>
-                    Frequency of technology occurrence across your portfolio transactions.
+                  <div className="rounded bg-white/70 p-2.5 border border-indigo-100">
+                    <span className="font-bold text-indigo-900 block">Support (Frequency)</span>
+                    Percentage of your portfolio project transactions containing both technologies together.
                   </div>
-                  <div className="rounded bg-white/70 p-2 border border-indigo-100">
-                    <span className="font-bold text-indigo-900 block">Confidence</span>
-                    Conditional probability that when you use technology A, you also use technology B.
+                  <div className="rounded bg-white/70 p-2.5 border border-indigo-100">
+                    <span className="font-bold text-indigo-900 block">Confidence (Reliability)</span>
+                    Probability that when you apply Technology A, you also utilize Technology B.
                   </div>
-                  <div className="rounded bg-white/70 p-2 border border-indigo-100">
-                    <span className="font-bold text-indigo-900 block">Lift (&gt; 1.0)</span>
-                    Strength of technological synergy beyond independent random chance.
+                  <div className="rounded bg-white/70 p-2.5 border border-indigo-100">
+                    <span className="font-bold text-indigo-900 block">Lift (&gt; 1.0 = Synergy)</span>
+                    Degree of technological affinity compared to random chance. Lift &gt; 1.0 indicates positive association.
                   </div>
                 </div>
-                <p className="text-[10px] text-indigo-700/90 pt-1 border-t border-indigo-200/60">
-                  <strong>Personal Portfolio Notice:</strong> Association metrics and co-occurrence patterns calculated from your portfolio reflect your individual project history and technology pairings, rather than population-wide industry rules.
+                <p className="text-[10px] text-indigo-700/90 pt-1 border-t border-indigo-200/60 leading-relaxed">
+                  <strong>Notice on Correlation vs Causation:</strong> Association rules identify empirical pairings within your submitted portfolio. They do not imply that learning one skill causes proficiency in another, nor do they represent universal market prerequisites.
                 </p>
               </div>
 
@@ -820,9 +1086,15 @@ export default function ReportsPage() {
                 </div>
 
                 {report.relationships.rules.length === 0 ? (
-                  <p className="text-xs text-muted-foreground italic">
-                    No co-occurrence patterns discovered yet. Add more projects and work experiences to calculate support and confidence rules.
-                  </p>
+                  <div className="rounded-xl border border-dashed border-border bg-muted/20 p-6 text-center text-xs text-muted-foreground">
+                    <p className="font-medium text-slate-700">No technology association rules mined yet</p>
+                    <p className="mt-1 text-[11px] max-w-sm mx-auto">
+                      Association rules require at least 2 distinct project or experience entries with overlapping technologies.
+                    </p>
+                    <Button asChild size="sm" variant="outline" className="mt-3 rounded-full text-xs">
+                      <Link href="/profile">Add Projects in Profile</Link>
+                    </Button>
+                  </div>
                 ) : (
                   <div className="overflow-hidden rounded-xl border border-border/80">
                     <table className="w-full text-left text-xs">
@@ -863,7 +1135,7 @@ export default function ReportsPage() {
             </section>
 
             {/* =========================================================================
-                SECTION 5: RECOMMENDED ACTION PLAN
+                SECTION 5: DATA QUALITY AND LIMITATIONS
                ========================================================================= */}
             <section className="space-y-4">
               <div className="flex items-center gap-2 border-b border-border/80 pb-2">
@@ -871,10 +1143,74 @@ export default function ReportsPage() {
                   5
                 </span>
                 <h3 className="text-lg font-semibold text-foreground">
+                  Data Quality & Limitations Disclosure
+                </h3>
+                <span className="ml-auto text-xs text-muted-foreground">
+                  Confidence assessment & missing information checklist
+                </span>
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5 text-xs space-y-4">
+                <div className="flex items-center gap-2 text-slate-800 font-semibold">
+                  <ShieldAlert className="size-4 text-indigo-600" />
+                  <span>Academic Methodology & Evaluation Scope</span>
+                </div>
+
+                <p className="text-[11px] text-muted-foreground leading-relaxed">
+                  {report.limitations.explanation ||
+                    'This report is generated by NETGRAPH using transparent co-occurrence transaction counting, Apriori support/confidence association rules, and deterministic weighted requirement coverage matching. It represents an exploratory academic heuristic and does not guarantee commercial employment outcomes or integrate external labor market data.'}
+                </p>
+
+                {/* Missing information checklist */}
+                {missingProfileItems.length > 0 && (
+                  <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-4 text-xs space-y-2">
+                    <p className="font-semibold text-amber-950 flex items-center gap-1.5">
+                      <AlertTriangle className="size-3.5 text-amber-600" />
+                      Missing Information That Could Improve This Report:
+                    </p>
+                    <ul className="space-y-1 text-[11px] text-amber-900">
+                      {missingProfileItems.map((item, idx) => (
+                        <li key={idx} className="flex items-center justify-between">
+                          <span>• {item.label}</span>
+                          <Link href={item.link} className="text-indigo-600 hover:underline font-medium">
+                            Add now →
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                <div className="grid gap-2 sm:grid-cols-3 pt-1 text-[11px]">
+                  <div className="rounded-lg bg-white p-2.5 border border-slate-200">
+                    <span className="font-semibold text-slate-800 block">Data Sources Analyzed</span>
+                    <span className="text-slate-600">Saved profile skills, projects, experiences, coursework</span>
+                  </div>
+                  <div className="rounded-lg bg-white p-2.5 border border-slate-200">
+                    <span className="font-semibold text-slate-800 block">Mining Algorithms</span>
+                    <span className="text-slate-600">Apriori co-occurrence, Jaccard similarity, weighted matching</span>
+                  </div>
+                  <div className="rounded-lg bg-white p-2.5 border border-slate-200">
+                    <span className="font-semibold text-slate-800 block">Confidence Level</span>
+                    <span className="text-slate-600 capitalize">{report.limitations.confidenceLevel} data confidence</span>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            {/* =========================================================================
+                SECTION 6: RECOMMENDED ACTION PLAN
+               ========================================================================= */}
+            <section className="space-y-4">
+              <div className="flex items-center gap-2 border-b border-border/80 pb-2">
+                <span className="flex size-6 items-center justify-center rounded-full bg-indigo-100 text-indigo-700 text-xs font-bold">
+                  6
+                </span>
+                <h3 className="text-lg font-semibold text-foreground">
                   Recommended Action Plan
                 </h3>
                 <span className="ml-auto text-xs text-muted-foreground">
-                  Structured 30-60-90 day milestone roadmap
+                  Structured 30-60-90 day milestone roadmap & next steps
                 </span>
               </div>
 
@@ -911,6 +1247,37 @@ export default function ReportsPage() {
                 ))}
               </div>
 
+              {/* Action Plan Skills Table */}
+              {report.actionPlan.skillsToImprove.length > 0 && (
+                <div className="rounded-2xl border border-border bg-card p-5 space-y-3">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                    <Target className="size-3.5 text-indigo-600" />
+                    Target Skills & Concrete Actions
+                  </h4>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {report.actionPlan.skillsToImprove.map((item, idx) => (
+                      <div
+                        key={idx}
+                        className="rounded-xl border border-border bg-muted/20 p-3.5 text-xs space-y-1.5"
+                      >
+                        <div className="flex items-center justify-between font-semibold">
+                          <span className="text-slate-900">{item.skill}</span>
+                          <span className="text-[10px] text-muted-foreground font-normal">
+                            Target: {item.targetRole}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-muted-foreground">
+                          <strong>Why:</strong> {item.reason}
+                        </p>
+                        <p className="text-[11px] text-indigo-700 font-medium">
+                          <strong>Next Action:</strong> {item.action}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Suggested Strengthening Project */}
               {report.actionPlan.recommendedProjects.length > 0 && (
                 <div className="rounded-xl border border-indigo-200 bg-indigo-50/50 p-4 text-xs space-y-2">
@@ -931,30 +1298,25 @@ export default function ReportsPage() {
                 </div>
               )}
 
-              {/* Career Preparation & Methodology Disclosure */}
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-xs space-y-3">
-                <div className="flex items-center gap-2 text-slate-800 font-semibold">
-                  <ShieldAlert className="size-4 text-indigo-600" />
-                  <span>Transparent Methodology & Confidence Disclosure</span>
-                </div>
-
-                <p className="text-[11px] text-muted-foreground leading-relaxed">
-                  This report is generated by NETGRAPH using transparent co-occurrence transaction counting, Apriori support/confidence association rules, and deterministic weighted requirement coverage matching. Analyzed profile data includes explicit skills, projects, and work history. It represents an exploratory planning heuristic and does not guarantee commercial employment outcomes or integrate external labor market data.
-                </p>
-
-                <div className="grid gap-2 sm:grid-cols-3 pt-1 text-[11px]">
-                  <div className="rounded-lg bg-white p-2.5 border border-slate-200">
-                    <span className="font-semibold text-slate-800 block">Data Sources Analyzed</span>
-                    <span className="text-slate-600">Saved profile skills, projects, experiences, coursework</span>
-                  </div>
-                  <div className="rounded-lg bg-white p-2.5 border border-slate-200">
-                    <span className="font-semibold text-slate-800 block">Mining Algorithms</span>
-                    <span className="text-slate-600">Apriori co-occurrence, Jaccard similarity, weighted matching</span>
-                  </div>
-                  <div className="rounded-lg bg-white p-2.5 border border-slate-200">
-                    <span className="font-semibold text-slate-800 block">Confidence Level</span>
-                    <span className="text-slate-600 capitalize">{report.limitations.confidenceLevel} data confidence</span>
-                  </div>
+              {/* Quick Jump Links to Existing Workspace Tools */}
+              <div className="pt-2 border-t border-border/80 flex flex-wrap items-center justify-between gap-3 text-xs">
+                <span className="text-muted-foreground font-medium">Continue your career analysis:</span>
+                <div className="flex flex-wrap gap-2">
+                  <Button asChild size="sm" variant="outline" className="rounded-full text-xs">
+                    <Link href="/profile">Edit Profile</Link>
+                  </Button>
+                  <Button asChild size="sm" variant="outline" className="rounded-full text-xs">
+                    <Link href="/career/compare">Career Comparison</Link>
+                  </Button>
+                  <Button asChild size="sm" variant="outline" className="rounded-full text-xs">
+                    <Link href="/skills">Skill Gaps</Link>
+                  </Button>
+                  <Button asChild size="sm" variant="outline" className="rounded-full text-xs">
+                    <Link href="/graph">3D Network Graph</Link>
+                  </Button>
+                  <Button asChild size="sm" variant="outline" className="rounded-full text-xs">
+                    <Link href="/analytics">Profile Analytics</Link>
+                  </Button>
                 </div>
               </div>
             </section>

@@ -110,65 +110,8 @@ export function generateId(prefix = 'item'): string {
   return `${prefix}_${Math.random().toString(36).slice(2, 9)}`
 }
 
-/**
- * Validate URL syntax (allows http and https)
- */
-export function isValidUrl(urlString?: string): boolean {
-  if (!urlString || !urlString.trim()) return true
-  try {
-    const url = new URL(urlString.trim())
-    return url.protocol === 'http:' || url.protocol === 'https:'
-  } catch {
-    return false
-  }
-}
-
-/**
- * Validate Email address
- */
-export function isValidEmail(email?: string): boolean {
-  if (!email) return false
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
-}
-
-/**
- * Calculate dynamic profile completeness percentage (0 to 100)
- */
-export function calculateProfileCompleteness(profile?: Partial<UserProfileData> | null): number {
-  if (!profile) return 0
-  let score = 0
-  
-  // Personal Info (max 30 pts)
-  if (profile.name?.trim()) score += 10
-  if (profile.headline?.trim()) score += 5
-  if (profile.location?.trim()) score += 5
-  if (profile.summary?.trim()) score += 5
-  if (profile.linkedinUrl?.trim() || profile.githubUrl?.trim()) score += 5
-
-  // Education (max 20 pts)
-  if (profile.education && profile.education.length > 0) score += 20
-
-  // Skills (max 25 pts)
-  if (profile.skillsList && profile.skillsList.length >= 3) {
-    score += 25
-  } else if (profile.skillsList && profile.skillsList.length > 0) {
-    score += 15
-  } else if (profile.skills && profile.skills.length > 0) {
-    score += 15
-  }
-
-  // Projects (max 15 pts)
-  if (profile.projects && profile.projects.length > 0) score += 15
-
-  // Experience & Certs (max 10 pts)
-  if (profile.experience && profile.experience.length > 0) {
-    score += 10
-  } else if (profile.certifications && profile.certifications.length > 0) {
-    score += 5
-  }
-
-  return Math.min(100, Math.max(0, score))
-}
+// Re-export all validation rules, data quality evaluators, and sanitizers
+export * from './data-validation'
 
 /**
  * Sample popular skills for quick selection in Onboarding & Profile

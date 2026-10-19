@@ -22,6 +22,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useAuth } from '@/context/auth-context'
+import { profileClient } from '@/lib/api-client'
 import {
   EducationEntry,
   SkillEntry,
@@ -34,12 +35,20 @@ import {
   SkillCategory,
   SkillProficiency,
   generateId,
-  isValidUrl,
 } from '@/lib/profile'
+import {
+  validateSkill,
+  validateProject,
+  validateExperience,
+  validateEducation,
+  validateCertification,
+  isValidUrl,
+} from '@/lib/data-validation'
+import { DataQualityCard } from '@/components/data-quality-card'
 
 export default function OnboardingPage() {
   const router = useRouter()
-  const { user, updateProfile, isAuthenticated, isLoading } = useAuth()
+  const { user, updateProfile, isAuthenticated, isLoading, authMode } = useAuth()
 
   // Current Step: 1 to 5
   const [currentStep, setCurrentStep] = useState(1)
@@ -253,24 +262,97 @@ export default function OnboardingPage() {
       certifications: certificationsList,
       onboarded: true,
     })
+
+    if (authMode === 'server') {
+      for (const edu of educationList) {
+        profileClient
+          .addEducation({
+            institution: edu.institution,
+            degree: edu.degree,
+            fieldOfStudy: edu.fieldOfStudy,
+            startYear: parseInt(String(edu.startYear)) || 2020,
+            graduationYear:
+              edu.graduationYear === 'Present'
+                ? new Date().getFullYear()
+                : parseInt(String(edu.graduationYear)) || new Date().getFullYear(),
+            coursework: edu.coursework,
+          })
+          .catch(() => {})
+      }
+      for (const sk of skillsList) {
+        profileClient
+          .addOrUpdateSkill({
+            name: sk.name,
+            category: sk.category,
+            proficiency: sk.proficiency,
+            yearsOfExperience: sk.yearsOfExperience,
+          })
+          .catch(() => {})
+      }
+      for (const exp of experienceList) {
+        profileClient
+          .addExperience({
+            company: exp.company,
+            jobTitle: exp.jobTitle,
+            employmentType: exp.employmentType,
+            startDate: exp.startDate,
+            endDate: exp.endDate,
+            isCurrent: exp.isCurrent,
+            description: exp.description,
+            technologies: exp.technologies,
+          })
+          .catch(() => {})
+      }
+      for (const proj of projectsList) {
+        profileClient
+          .addProject({
+            title: proj.title,
+            description: proj.description,
+            technologies: proj.technologies,
+            projectUrl: proj.projectUrl,
+            githubUrl: proj.githubUrl,
+          })
+          .catch(() => {})
+      }
+      for (const cert of certificationsList) {
+        profileClient
+          .addCertification({
+            name: cert.name,
+            issuer: cert.issuer,
+            issueDate: cert.issueDate,
+            credentialUrl: cert.credentialUrl,
+          })
+          .catch(() => {})
+      }
+    }
+
     setIsCompleted(true)
   }
 
   // Education helpers
   const handleAddEducation = () => {
-    const errs: Record<string, string> = {}
-    if (!newEdu.institution.trim()) errs.eduInst = 'Institution name is required.'
-    if (!newEdu.degree.trim()) errs.eduDegree = 'Degree is required.'
-    if (!newEdu.fieldOfStudy.trim()) errs.eduField = 'Field of study is required.'
-    const startYr = Number(newEdu.startYear)
-    const gradYr = Number(newEdu.graduationYear)
-    if (isNaN(startYr) || startYr < 1960 || startYr > 2035) errs.eduStart = 'Valid start year required.'
-    if (isNaN(gradYr) || gradYr < startYr) errs.eduGrad = 'Graduation year cannot precede start year.'
+    const check = validateEducation({
+      institution: newEdu.institution,
+      degree: newEdu.degree,
+      fieldOfStudy: newEdu.fieldOfStudy,
+      startYear: newEdu.startYear,
+      graduationYear: newEdu.graduationYear,
+      coursework: newEdu.coursework,
+    })
 
-    if (Object.keys(errs).length > 0) {
+    if (!check.valid) {
+      const errs: Record<string, string> = {}
+      if (check.errors.institution) errs.eduInst = check.errors.institution
+      if (check.errors.degree) errs.eduDegree = check.errors.degree
+      if (check.errors.fieldOfStudy) errs.eduField = check.errors.fieldOfStudy
+      if (check.errors.startYear) errs.eduStart = check.errors.startYear
+      if (check.errors.graduationYear) errs.eduGrad = check.errors.graduationYear
       setErrors(errs)
       return
     }
+
+    const startYr = Number(newEdu.startYear)
+    const gradYr = Number(newEdu.graduationYear)
 
     setEducationList((prev) => [
       ...prev,
@@ -302,13 +384,12 @@ export default function OnboardingPage() {
 
   // Skill helpers
   const handleAddSkill = (name: string, category: SkillCategory = 'Programming Languages') => {
-    const trimmed = name.trim()
-    if (!trimmed) return
-    const isDuplicate = skillsList.some((s) => s.name.toLowerCase() === trimmed.toLowerCase())
-    if (isDuplicate) {
-      setErrors({ skillInput: `"${trimmed}" is already in your skills list.` })
+    const check = validateSkill(name, skillsList)
+    if (!check.valid) {
+      setErrors({ skillInput: check.errors.name || 'Invalid skill name.' })
       return
     }
+    const trimmed = name.trim()
 
     setSkillsList((prev) => [
       ...prev,
@@ -330,27 +411,28 @@ export default function OnboardingPage() {
 
   // Project helpers
   const handleAddProject = () => {
-    if (!newProj.title.trim()) {
-      setErrors({ projTitle: 'Project title is required.' })
-      return
-    }
-    if (!newProj.description.trim()) {
-      setErrors({ projDesc: 'Project description is required.' })
-      return
-    }
-    if (newProj.projectUrl && !isValidUrl(newProj.projectUrl)) {
-      setErrors({ projUrl: 'Project URL must be valid.' })
-      return
-    }
-    if (newProj.githubUrl && !isValidUrl(newProj.githubUrl)) {
-      setErrors({ projGithub: 'GitHub URL must be valid.' })
-      return
-    }
-
     const techArray = newProj.technologies
       .split(',')
       .map((t) => t.trim())
       .filter(Boolean)
+
+    const check = validateProject({
+      title: newProj.title,
+      description: newProj.description,
+      technologies: techArray,
+      projectUrl: newProj.projectUrl,
+      githubUrl: newProj.githubUrl,
+    })
+
+    if (!check.valid) {
+      const errs: Record<string, string> = {}
+      if (check.errors.title) errs.projTitle = check.errors.title
+      if (check.errors.description) errs.projDesc = check.errors.description
+      if (check.errors.projectUrl) errs.projUrl = check.errors.projectUrl
+      if (check.errors.githubUrl) errs.projGithub = check.errors.githubUrl
+      setErrors(errs)
+      return
+    }
 
     setProjectsList((prev) => [
       ...prev,
@@ -374,27 +456,31 @@ export default function OnboardingPage() {
 
   // Experience helpers
   const handleAddExperience = () => {
-    if (!newExp.jobTitle.trim()) {
-      setErrors({ expTitle: 'Job title is required.' })
-      return
-    }
-    if (!newExp.company.trim()) {
-      setErrors({ expCompany: 'Company name is required.' })
-      return
-    }
-    if (!newExp.startDate) {
-      setErrors({ expStart: 'Start date is required.' })
-      return
-    }
-    if (!newExp.isCurrent && newExp.endDate && newExp.endDate < newExp.startDate) {
-      setErrors({ expEnd: 'End date cannot precede start date.' })
-      return
-    }
-
     const techArray = newExp.technologies
       .split(',')
       .map((t) => t.trim())
       .filter(Boolean)
+
+    const check = validateExperience({
+      jobTitle: newExp.jobTitle,
+      company: newExp.company,
+      startDate: newExp.startDate,
+      endDate: newExp.isCurrent ? 'Present' : newExp.endDate,
+      isCurrent: newExp.isCurrent,
+      description: newExp.description,
+      technologies: techArray,
+    })
+
+    if (!check.valid) {
+      const errs: Record<string, string> = {}
+      if (check.errors.jobTitle) errs.expTitle = check.errors.jobTitle
+      if (check.errors.company) errs.expCompany = check.errors.company
+      if (check.errors.startDate) errs.expStart = check.errors.startDate
+      if (check.errors.endDate) errs.expEnd = check.errors.endDate
+      if (check.errors.description) errs.expDesc = check.errors.description
+      setErrors(errs)
+      return
+    }
 
     setExperienceList((prev) => [
       ...prev,
@@ -430,16 +516,20 @@ export default function OnboardingPage() {
 
   // Certification helpers
   const handleAddCertification = () => {
-    if (!newCert.name.trim()) {
-      setErrors({ certName: 'Certification name is required.' })
-      return
-    }
-    if (!newCert.issuer.trim()) {
-      setErrors({ certIssuer: 'Issuing organization is required.' })
-      return
-    }
-    if (newCert.credentialUrl && !isValidUrl(newCert.credentialUrl)) {
-      setErrors({ certUrl: 'Credential URL must be a valid web link.' })
+    const check = validateCertification({
+      name: newCert.name,
+      issuer: newCert.issuer,
+      credentialUrl: newCert.credentialUrl,
+      issueDate: newCert.issueDate,
+    })
+
+    if (!check.valid) {
+      const errs: Record<string, string> = {}
+      if (check.errors.name) errs.certName = check.errors.name
+      if (check.errors.issuer) errs.certIssuer = check.errors.issuer
+      if (check.errors.credentialUrl) errs.certUrl = check.errors.credentialUrl
+      if (check.errors.issueDate) errs.certDate = check.errors.issueDate
+      setErrors(errs)
       return
     }
 
@@ -1265,6 +1355,25 @@ export default function OnboardingPage() {
                     Everything looks ready. Review your information below before finalizing onboarding.
                   </p>
                 </div>
+
+                {/* Data Quality & Mining Health Summary */}
+                <DataQualityCard
+                  profile={{
+                    name: fullName,
+                    headline,
+                    location,
+                    summary,
+                    linkedinUrl,
+                    githubUrl,
+                    education: educationList,
+                    skillsList,
+                    skills: skillsList.map((s) => s.name),
+                    projects: projectsList,
+                    experience: experienceList,
+                    certifications: certificationsList,
+                  }}
+                  compact={false}
+                />
 
                 {/* Personal Info Review Card */}
                 <div className="rounded-2xl border border-border bg-card p-6 shadow-xs">

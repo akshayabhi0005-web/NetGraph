@@ -5,4 +5,7 @@ minimumReleaseAgeExclude:
   - next
 
 allowBuilds:
+  '@prisma/client': true
+  '@prisma/engines': true
   core-js: true
+  prisma: true

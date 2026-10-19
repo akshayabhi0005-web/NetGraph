@@ -31,36 +31,46 @@ export default function SignupPage() {
     e.preventDefault()
     setErrorMessage('')
 
-    if (!name.trim() || name.trim().length < 2) {
+    if (isSubmitting) return
+
+    const trimmedName = name.trim()
+    if (!trimmedName || trimmedName.length < 2) {
       setErrorMessage('Please enter your full name (at least 2 characters).')
       return
     }
 
+    const trimmedEmail = email.trim()
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-    if (!emailRegex.test(email.trim())) {
+    if (!emailRegex.test(trimmedEmail)) {
       setErrorMessage('Please enter a valid email address.')
       return
     }
 
-    if (!password || password.length < 6) {
-      setErrorMessage('Password must be at least 6 characters long.')
+    if (!password || password.length < 8) {
+      setErrorMessage('Password must be at least 8 characters long to meet security requirements.')
       return
     }
 
     if (!agreed) {
-      setErrorMessage('Please acknowledge the demo terms to continue.')
+      setErrorMessage('Please acknowledge the terms to continue.')
       return
     }
 
     setIsSubmitting(true)
-    const result = await signup(name.trim(), email.trim(), password)
+    const result = await signup(trimmedName, trimmedEmail, password)
     setIsSubmitting(false)
 
     if (result.success) {
       // Proceed to profile onboarding
       router.push('/onboarding')
     } else {
-      setErrorMessage(result.error || 'Failed to create account. Please try again.')
+      if (result.isDatabaseUnavailable) {
+        setErrorMessage(
+          'The backend database is currently unconfigured or offline. To explore NetGraph features immediately, please use "Demo Sign In" on the Login page.'
+        )
+      } else {
+        setErrorMessage(result.error || 'Failed to create account. Please try again.')
+      }
     }
   }
 

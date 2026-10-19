@@ -19,6 +19,8 @@ export interface CareerAnalysisHook {
   analysis: MiningResult
   user: ReturnType<typeof useAuth>['user']
   isLoading: boolean
+  authMode: 'server' | 'demo' | null
+  isDemoData: boolean
   careerMatches: CareerRoleMatch[]
   skillGaps: SkillGap[]
   skills: NormalisedSkill[]
@@ -36,17 +38,21 @@ export interface CareerAnalysisHook {
  * Recalculates deterministically whenever the user's profile changes in auth context.
  */
 export function useCareerAnalysis(): CareerAnalysisHook {
-  const { user, isLoading } = useAuth()
+  const { user, isLoading, authMode } = useAuth()
 
   // Deterministically recompute mining analysis whenever the user object updates
   const analysis = useMemo(() => {
     return getProfileAnalysis(user)
   }, [user])
 
+  const isDemoData = authMode === 'demo'
+
   return {
     analysis,
     user,
     isLoading,
+    authMode,
+    isDemoData,
     careerMatches: analysis.careerMatches,
     skillGaps: analysis.skillGaps,
     skills: analysis.normalisedSkills,

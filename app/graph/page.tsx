@@ -19,7 +19,7 @@ import {
 } from 'lucide-react'
 
 export default function GraphPage() {
-  const { user, graphNodes, graphEdges, dataQuality, skills } = useCareerAnalysis()
+  const { user, graphNodes, graphEdges, dataQuality, skills, authMode, isDemoData } = useCareerAnalysis()
 
   // Calculate distinct profile sections contributing data to the graph
   const dataSourcesCount = useMemo(() => {
@@ -53,9 +53,20 @@ export default function GraphPage() {
         {/* A. Page Header */}
         <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
           <div>
-            <Badge variant="secondary" className="rounded-full bg-indigo-50 text-indigo-700">
-              Interactive Relationship Network
-            </Badge>
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant="secondary" className="rounded-full bg-indigo-50 text-indigo-700">
+                Interactive Relationship Network
+              </Badge>
+              {isDemoData ? (
+                <Badge variant="secondary" className="rounded-full bg-slate-100 text-slate-700 border-slate-200">
+                  Demo Dataset
+                </Badge>
+              ) : authMode === 'server' ? (
+                <Badge variant="secondary" className="rounded-full bg-emerald-50 text-emerald-700 border-emerald-200">
+                  Live Database Profile
+                </Badge>
+              ) : null}
+            </div>
             <h1 className="mt-3 text-3xl font-semibold tracking-[-.05em] md:text-4xl text-slate-900">
               Explore your relationship graph
             </h1>

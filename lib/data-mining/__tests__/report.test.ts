@@ -256,6 +256,99 @@ runTest('16. Populated profile derives executiveSummary, projectRelationships, a
   assert.ok(Array.isArray(report.actionPlan.recommendedProjects))
 })
 
+// 17. Empty relationship results when transactions have no co-occurrences
+runTest('17. Empty relationship results handled gracefully when transactions have no co-occurrences', () => {
+  const singleTechUser: Partial<UserProfile> = {
+    id: 'user_single_tech',
+    name: 'Solo Builder',
+    skills: ['Python'],
+    projects: [
+      {
+        id: 'proj_1',
+        title: 'Solo Script',
+        description: 'Single technology script',
+        technologies: ['Python'],
+      },
+    ],
+  }
+  const analysis = mineUserProfile(singleTechUser)
+  const report = buildCareerIntelligenceReport(singleTechUser, analysis)
+
+  assert.strictEqual(report.metadata.hasData, true)
+  assert.strictEqual(report.relationships.rules.length, 0)
+  assert.strictEqual(report.projectRelationships.projectTechAssociations.length, 1)
+  assert.ok(report.limitations.warnings.length > 0)
+})
+
+// 18. Action plan details with priority, reason, and suggested action
+runTest('18. Action plan generates concrete steps with priorities, reasons, and suggested actions', () => {
+  const analysis = mineUserProfile(DEFAULT_DEMO_USER)
+  const report = buildCareerIntelligenceReport(DEFAULT_DEMO_USER, analysis)
+
+  assert.ok(report.actionPlan.prioritizedSteps.length >= 3)
+  for (const step of report.actionPlan.prioritizedSteps) {
+    assert.ok(['high', 'medium', 'low'].includes(step.priority))
+    assert.ok(step.title.length > 0)
+    assert.ok(step.description.length > 0)
+    assert.ok(step.timeframe.length > 0)
+  }
+
+  assert.ok(report.actionPlan.skillsToImprove.length > 0)
+  for (const item of report.actionPlan.skillsToImprove) {
+    assert.ok(item.skill.length > 0)
+    assert.ok(item.targetRole.length > 0)
+    assert.ok(item.reason.length > 0)
+    assert.ok(item.action.length > 0)
+  }
+})
+
+// 19. Data quality warnings reflect missing projects and experience
+runTest('19. Data quality warnings explicitly identify missing projects, experience, and coursework', () => {
+  const skillsOnlyUser: Partial<UserProfile> = {
+    id: 'skills_only',
+    name: 'Skill Only User',
+    skills: ['JavaScript', 'HTML', 'CSS'],
+  }
+  const analysis = mineUserProfile(skillsOnlyUser)
+  const report = buildCareerIntelligenceReport(skillsOnlyUser, analysis)
+
+  assert.strictEqual(report.limitations.isSufficientData, false)
+  assert.strictEqual(report.limitations.confidenceLevel, 'low')
+  assert.ok(report.limitations.warnings.length >= 2)
+  const warningText = report.limitations.warnings.join(' ')
+  assert.ok(warningText.includes('project') || warningText.includes('transaction'))
+})
+
+// 20. Career readiness and alignment score consistency
+runTest('20. Career matches score consistency between mining engine and report', () => {
+  const analysis = mineUserProfile(DEFAULT_DEMO_USER)
+  const report = buildCareerIntelligenceReport(DEFAULT_DEMO_USER, analysis)
+
+  assert.strictEqual(
+    report.careerMatches.totalMatchesEvaluated,
+    analysis.careerMatches.length
+  )
+  assert.strictEqual(
+    report.careerMatches.topMatches[0].roleTitle,
+    analysis.careerMatches[0].roleTitle
+  )
+  assert.strictEqual(
+    report.careerMatches.topMatches[0].matchScore,
+    analysis.careerMatches[0].matchScore
+  )
+})
+
+// 21. Date-based report filename formatting and Blob generation
+runTest('21. Date-based report filename formatting and valid PDF export generation', () => {
+  const analysis = mineUserProfile(DEFAULT_DEMO_USER)
+  const report = buildCareerIntelligenceReport(DEFAULT_DEMO_USER, analysis)
+  const filename = getReportPdfFilename(report.metadata.generatedAt)
+
+  assert.ok(filename.startsWith('NETGRAPH_Career_Report_'))
+  assert.ok(filename.endsWith('.pdf'))
+  assert.match(filename, /^NETGRAPH_Career_Report_\d{4}-\d{2}-\d{2}\.pdf$/)
+})
+
 console.log('\n======================================================')
 console.log(`TEST SUMMARY: ${passedCount} PASSED, ${failedCount} FAILED`)
 console.log('======================================================\n')

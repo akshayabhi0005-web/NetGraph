@@ -14,6 +14,7 @@ import type {
   ExperienceEntry,
   CertificationEntry,
 } from './profile'
+import { sanitizeProfileData } from './data-validation'
 
 export interface UserProfile {
   id: string
@@ -203,7 +204,13 @@ export function getStoredAccounts(): UserAccount[] {
       localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(initial))
       return initial
     }
-    return JSON.parse(raw) as UserAccount[]
+    const parsed = JSON.parse(raw)
+    if (!Array.isArray(parsed)) return []
+    return parsed.map((acc: Record<string, unknown>) => ({
+      ...sanitizeProfileData(acc),
+      salt: typeof acc.salt === 'string' ? acc.salt : DEFAULT_DEMO_SALT,
+      passwordHash: typeof acc.passwordHash === 'string' ? acc.passwordHash : DEFAULT_DEMO_HASH,
+    }))
   } catch (err) {
     console.error('Failed to parse stored demo users:', err)
     return []
@@ -231,11 +238,15 @@ export function getCurrentSession(): AuthSession | null {
     const raw = localStorage.getItem(SESSION_STORAGE_KEY)
     if (!raw) return null
     const session = JSON.parse(raw) as AuthSession
+    if (!session || !session.user || typeof session !== 'object') return null
     if (Date.now() > session.expiresAt) {
       logoutUser()
       return null
     }
-    return session
+    return {
+      ...session,
+      user: sanitizeProfileData(session.user),
+    }
   } catch (err) {
     console.error('Failed to parse current session:', err)
     return null
@@ -411,11 +422,11 @@ export function updateUserProfile(updates: Partial<UserProfile>): UserProfile | 
     computedSkills = updates.skillsList.map((s) => s.name)
   }
 
-  const updatedUser: UserProfile = {
+  const updatedUser: UserProfile = sanitizeProfileData({
     ...session.user,
     ...updates,
     skills: computedSkills,
-  }
+  })
 
   // Update in session
   saveCurrentSession(updatedUser)
@@ -426,8 +437,7 @@ export function updateUserProfile(updates: Partial<UserProfile>): UserProfile | 
   if (index !== -1) {
     accounts[index] = {
       ...accounts[index],
-      ...updates,
-      skills: computedSkills,
+      ...updatedUser,
     }
     saveStoredAccounts(accounts)
   }

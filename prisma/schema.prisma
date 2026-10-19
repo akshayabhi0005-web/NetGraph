@@ -1,0 +1,158 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 1. Account & Core Authentication
+// ─────────────────────────────────────────────────────────────────────────────
+
+model User {
+  id           String        @id @default(cuid())
+  email        String        @unique
+  passwordHash String
+  salt         String
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  profile        UserProfile?
+  educations     Education[]
+  skills         Skill[]
+  projects       Project[]
+  experiences    Experience[]
+  certifications Certification[]
+  settings       UserSettings?
+  sessions       UserSession[]
+
+  @@index([email])
+}
+
+model UserSession {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([token])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 2. Profile & Domain Entities
+// ─────────────────────────────────────────────────────────────────────────────
+
+model UserProfile {
+  id             String   @id @default(cuid())
+  userId         String   @unique
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name           String
+  headline       String?
+  location       String?
+  summary        String?  @db.Text
+  careerGoal     String?  @db.Text
+  phone          String?
+  linkedinUrl    String?
+  githubUrl      String?
+  portfolioUrl   String?
+  onboarded      Boolean  @default(false)
+  onboardingStep Int      @default(1)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model Education {
+  id             String   @id @default(cuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  institution    String
+  degree         String
+  fieldOfStudy   String
+  startYear      Int
+  graduationYear Int
+  coursework     String?  @db.Text
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model Skill {
+  id                String   @id @default(cuid())
+  userId            String
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name              String
+  category          String   @default("Programming Languages")
+  proficiency       String   @default("Intermediate")
+  yearsOfExperience Int      @default(1)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([userId, name])
+  @@index([userId])
+}
+
+model Project {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title        String
+  description  String   @db.Text
+  technologies String[]
+  projectUrl   String?
+  githubUrl    String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model Experience {
+  id             String   @id @default(cuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company        String
+  jobTitle       String
+  employmentType String   @default("Full-time")
+  startDate      String
+  endDate        String?
+  isCurrent      Boolean  @default(false)
+  description    String   @db.Text
+  technologies   String[]
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model Certification {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name          String
+  issuer        String
+  issueDate     String?
+  credentialUrl String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model UserSettings {
+  id                 String   @id @default(cuid())
+  userId             String   @unique
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  theme              String   @default("system")
+  demoAnalysisMode   Boolean  @default(false)
+  emailSummaries     Boolean  @default(false)
+  shareAnalytics     Boolean  @default(false)
+  defaultGraphLayout String   @default("force-directed")
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}

@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { AppShell } from '@/components/app-shell'
 import { Button } from '@/components/ui/button'
@@ -23,10 +23,16 @@ import {
 import { CareerRoleMatch } from '@/lib/data-mining/types'
 
 export default function CareerPage() {
-  const { careerMatches, skillGaps, dataQuality, skills } = useCareerAnalysis()
+  const { careerMatches, skillGaps, dataQuality, skills, authMode, isDemoData } = useCareerAnalysis()
   const [selectedRole, setSelectedRole] = useState<CareerRoleMatch | null>(
     careerMatches[0] || null
   )
+
+  useEffect(() => {
+    if (!selectedRole && careerMatches.length > 0) {
+      setSelectedRole(careerMatches[0])
+    }
+  }, [careerMatches, selectedRole])
 
   // Gaps specific to the selected role
   const roleGaps = selectedRole
@@ -39,14 +45,25 @@ export default function CareerPage() {
         {/* Header */}
         <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
           <div>
-            <Badge variant="secondary" className="rounded-full bg-indigo-50 text-indigo-700">
-              Data-Mined Career Alignments
-            </Badge>
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant="secondary" className="rounded-full bg-indigo-50 text-indigo-700">
+                Data-Mined Career Alignments
+              </Badge>
+              {isDemoData ? (
+                <Badge variant="secondary" className="rounded-full bg-slate-100 text-slate-700 border-slate-200">
+                  Demo Dataset
+                </Badge>
+              ) : authMode === 'server' ? (
+                <Badge variant="secondary" className="rounded-full bg-emerald-50 text-emerald-700 border-emerald-200">
+                  Live Database Profile
+                </Badge>
+              ) : null}
+            </div>
             <h1 className="mt-3 text-3xl font-semibold tracking-[-.05em] md:text-4xl">
               Career pathways & role alignment
             </h1>
             <p className="mt-2 text-muted-foreground">
-              Deterministic matching calculated from your verified skills, project technologies, and experience.
+              Deterministic matching calculated from your verified skills, project technologies, and experience. Match scores are indicative capability comparisons, not predictions or guarantees of employment.
             </p>
           </div>
           <div className="flex items-center gap-3">

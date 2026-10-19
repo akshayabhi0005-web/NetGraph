@@ -46,7 +46,7 @@ export function AppShell({
 }) {
   const path = usePathname()
   const router = useRouter()
-  const { user, isAuthenticated, isLoading, logout } = useAuth()
+  const { user, isAuthenticated, isLoading, authMode, logout } = useAuth()
   const [mobileOpen, setMobileOpen] = useState(false)
 
   // Close mobile drawer on route change
@@ -85,8 +85,8 @@ export function AppShell({
     }
   }, [isLoading, isAuthenticated, path, router])
 
-  const handleLogout = () => {
-    logout()
+  const handleLogout = async () => {
+    await logout()
     router.push('/login')
   }
 
@@ -107,7 +107,7 @@ export function AppShell({
 
   const initials = getInitials(user?.name)
   const displayName = user?.name || 'Scholar User'
-  const userSubtitle = user?.headline || 'Demo account'
+  const userSubtitle = authMode === 'demo' ? 'Local Demo Mode' : (user?.headline || 'Server Account')
 
   return (
     <main className="min-h-screen bg-background text-foreground">
@@ -155,7 +155,7 @@ export function AppShell({
               type="button"
               onClick={handleLogout}
               className="flex items-center gap-1.5 text-xs font-medium text-rose-600 hover:text-rose-700 transition"
-              title="Sign out of demo session"
+              title="Sign out"
             >
               <LogOut className="size-3.5" /> Sign out
             </button>
@@ -256,7 +256,7 @@ export function AppShell({
                 handleLogout()
               }}
               className="flex items-center gap-1.5 text-xs font-medium text-rose-600 hover:text-rose-700 transition"
-              title="Sign out of demo session"
+              title="Sign out"
             >
               <LogOut className="size-3.5" /> Sign out
             </button>

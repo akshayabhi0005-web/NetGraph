@@ -35,8 +35,17 @@ function LoginForm() {
     setErrorMessage('')
     setInfoMessage('')
 
-    if (!email.trim()) {
+    if (isSubmitting) return
+
+    const trimmedEmail = email.trim()
+    if (!trimmedEmail) {
       setErrorMessage('Please enter your email address.')
+      return
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(trimmedEmail)) {
+      setErrorMessage('Please enter a valid email address.')
       return
     }
 
@@ -46,13 +55,19 @@ function LoginForm() {
     }
 
     setIsSubmitting(true)
-    const result = await login(email.trim(), password)
+    const result = await login(trimmedEmail, password)
     setIsSubmitting(false)
 
     if (result.success) {
       router.push(redirectPath)
     } else {
-      setErrorMessage(result.error || 'Invalid email or password.')
+      if (result.isDatabaseUnavailable) {
+        setErrorMessage(
+          'The backend database is currently unconfigured or offline. To test NetGraph immediately without PostgreSQL, click "Demo Sign In" above.'
+        )
+      } else {
+        setErrorMessage(result.error || 'Invalid email or password.')
+      }
     }
   }
 

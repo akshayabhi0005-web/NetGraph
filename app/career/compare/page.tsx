@@ -234,7 +234,7 @@ function PathCard({
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default function CareerComparePage() {
-  const { careerMatches, skillGaps, skills, dataQuality } = useCareerAnalysis()
+  const { careerMatches, skillGaps, skills, dataQuality, authMode, isDemoData } = useCareerAnalysis()
 
   const [roleAId, setRoleAId] = useState<string>('')
   const [roleBId, setRoleBId] = useState<string>('')
@@ -340,14 +340,25 @@ export default function CareerComparePage() {
         {/* Header */}
         <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
           <div>
-            <Badge variant="secondary" className="rounded-full bg-indigo-50 text-indigo-700">
-              Side-by-Side Career Analysis
-            </Badge>
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant="secondary" className="rounded-full bg-indigo-50 text-indigo-700">
+                Side-by-Side Career Analysis
+              </Badge>
+              {isDemoData ? (
+                <Badge variant="secondary" className="rounded-full bg-slate-100 text-slate-700 border-slate-200">
+                  Demo Dataset
+                </Badge>
+              ) : authMode === 'server' ? (
+                <Badge variant="secondary" className="rounded-full bg-emerald-50 text-emerald-700 border-emerald-200">
+                  Live Database Profile
+                </Badge>
+              ) : null}
+            </div>
             <h1 className="mt-3 text-3xl font-semibold tracking-[-.05em] md:text-4xl text-slate-900">
               Compare career paths
             </h1>
             <p className="mt-2 text-sm text-muted-foreground max-w-2xl">
-              Select two career paths and compare required skills, your profile coverage, skill gaps, and learning priorities — based entirely on your profile data.
+              Select two career paths and compare required skills, your profile coverage, skill gaps, and learning priorities. Match scores represent indicative capability comparisons, not predictions or guarantees of employment.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3">

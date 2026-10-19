@@ -39,7 +39,7 @@ const PROFICIENCY_PERCENT: Record<SkillProficiency, number> = {
 
 export default function SkillsPage() {
   const { user, updateProfile } = useAuth()
-  const { analysis, coOccurrences, associationRules, dataQuality } = useCareerAnalysis()
+  const { analysis, coOccurrences, associationRules, dataQuality, authMode, isDemoData } = useCareerAnalysis()
 
   const [selectedCategory, setSelectedCategory] = useState<string>('all')
   const [searchQuery, setSearchQuery] = useState('')
@@ -157,9 +157,20 @@ export default function SkillsPage() {
         {/* Header */}
         <div className="flex flex-col justify-between gap-5 md:flex-row md:items-end">
           <div>
-            <Badge variant="secondary" className="rounded-full bg-indigo-50 text-indigo-700">
-              Mined Skill Intelligence
-            </Badge>
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant="secondary" className="rounded-full bg-indigo-50 text-indigo-700">
+                Mined Skill Intelligence
+              </Badge>
+              {isDemoData ? (
+                <Badge variant="secondary" className="rounded-full bg-slate-100 text-slate-700 border-slate-200">
+                  Demo Dataset
+                </Badge>
+              ) : authMode === 'server' ? (
+                <Badge variant="secondary" className="rounded-full bg-emerald-50 text-emerald-700 border-emerald-200">
+                  Live Database Profile
+                </Badge>
+              ) : null}
+            </div>
             <h1 className="mt-3 text-3xl font-semibold tracking-[-.05em] md:text-4xl">
               Skill inventory & relationship mining
             </h1>

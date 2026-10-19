@@ -7,11 +7,12 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "test": "npx tsx lib/data-mining/__tests__/mining.test.ts && npx tsx lib/data-mining/__tests__/report.test.ts"
+    "test": "npx tsx lib/data-mining/__tests__/mining.test.ts && npx tsx lib/data-mining/__tests__/report.test.ts && npx tsx lib/data-mining/__tests__/validation.test.ts && npx tsx lib/data-mining/__tests__/integration-regression.test.ts && npx tsx lib/server/__tests__/backend-foundation.test.ts && npx tsx lib/__tests__/frontend-auth-integration.test.ts && npx tsx lib/__tests__/profile-db-integration.test.ts && npx tsx lib/__tests__/data-mining-engine-integration.test.ts && npx tsx lib/__tests__/e2e-user-journey-reliability.test.ts && npx tsx lib/__tests__/live-neon-db-integration.test.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",
     "@hookform/resolvers": "^5.9.1",
+    "@prisma/client": "^6.19.3",
     "@react-three/drei": "^10.7.9",
     "@react-three/fiber": "^9.8.1",
     "@vercel/analytics": "1.6.1",
@@ -39,6 +40,7 @@
     "@types/react-dom": "^19",
     "@types/three": "^0.186.0",
     "postcss": "^8.5",
+    "prisma": "^6.19.3",
     "tailwindcss": "^4.3.3",
     "typescript": "5.7.3"
   }

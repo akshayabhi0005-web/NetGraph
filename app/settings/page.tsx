@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { AppShell } from '@/components/app-shell'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/context/auth-context'
+import { settingsClient } from '@/lib/api-client'
 import { LogOut, RotateCcw, CheckCircle2 } from 'lucide-react'
 
 export interface UserPreferences {
@@ -62,7 +63,7 @@ export function savePreferences(prefs: UserPreferences): void {
 
 export default function Settings() {
   const router = useRouter()
-  const { user, logout } = useAuth()
+  const { user, logout, authMode } = useAuth()
 
   // Controlled preferences state initialized with sensible defaults
   const [preferences, setPreferences] = useState<UserPreferences>(DEFAULT_PREFERENCES)
@@ -74,7 +75,28 @@ export default function Settings() {
     const saved = getSavedPreferences()
     setPreferences(saved)
     setIsLoaded(true)
-  }, [])
+
+    if (authMode === 'server') {
+      settingsClient
+        .getSettings()
+        .then((res) => {
+          if (res.success && res.data?.settings) {
+            const s = res.data.settings
+            setPreferences({
+              demoAnalysisMode:
+                typeof s.demoAnalysisMode === 'boolean'
+                  ? s.demoAnalysisMode
+                  : DEFAULT_PREFERENCES.demoAnalysisMode,
+              emailSummaries:
+                typeof s.emailSummaries === 'boolean'
+                  ? s.emailSummaries
+                  : DEFAULT_PREFERENCES.emailSummaries,
+            })
+          }
+        })
+        .catch(() => {})
+    }
+  }, [authMode])
 
   const handleToggle = (key: keyof UserPreferences) => {
     setPreferences((prev) => {
@@ -83,24 +105,43 @@ export default function Settings() {
         [key]: !prev[key],
       }
       savePreferences(updated)
+
+      if (authMode === 'server') {
+        settingsClient
+          .updateSettings({
+            [key]: updated[key],
+          })
+          .then((res) => {
+            if (res.isDatabaseUnavailable) {
+              setSaveNotice('Saved locally (DB offline)')
+            } else {
+              setSaveNotice('Synced to database')
+            }
+          })
+          .catch(() => {
+            setSaveNotice('Saved locally')
+          })
+      } else {
+        setSaveNotice('Preference saved')
+      }
+
+      setTimeout(() => setSaveNotice(null), 2500)
       return updated
     })
-    setSaveNotice('Preference saved')
-    setTimeout(() => setSaveNotice(null), 2500)
   }
 
-  const handleLogout = () => {
-    logout()
+  const handleLogout = async () => {
+    await logout()
     router.push('/login')
   }
 
-  const handleResetData = () => {
+  const handleResetData = async () => {
     if (typeof window !== 'undefined') {
       localStorage.removeItem('netgraph_demo_users_v1')
       localStorage.removeItem('netgraph_demo_session_v1')
       localStorage.removeItem(SETTINGS_STORAGE_KEY)
       setPreferences(DEFAULT_PREFERENCES)
-      logout()
+      await logout()
       router.push('/login')
     }
   }

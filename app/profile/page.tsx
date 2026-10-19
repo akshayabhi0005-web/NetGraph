@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { useAuth } from '@/context/auth-context'
+import { profileClient } from '@/lib/api-client'
 import {
   User,
   GraduationCap,
@@ -35,13 +36,21 @@ import {
   SKILL_PROFICIENCIES,
   POPULAR_TECH_SKILLS,
   calculateProfileCompleteness,
-  isValidUrl,
 } from '@/lib/profile'
+import {
+  validateSkill,
+  validateProject,
+  validateExperience,
+  validateEducation,
+  validateCertification,
+  isValidUrl,
+} from '@/lib/data-validation'
+import { DataQualityCard } from '@/components/data-quality-card'
 
 type ProfileTab = 'personal' | 'education' | 'skills' | 'experience' | 'certifications'
 
 export default function ProfilePage() {
-  const { user, updateProfile } = useAuth()
+  const { user, updateProfile, authMode, serverStatus } = useAuth()
 
   // Active Tab
   const [activeTab, setActiveTab] = useState<ProfileTab>('personal')
@@ -114,6 +123,13 @@ export default function ProfilePage() {
   // Status & Validation states
   const [savedMessage, setSavedMessage] = useState<string | null>(null)
   const [formErrors, setFormErrors] = useState<Record<string, string>>({})
+  const [eduErrors, setEduErrors] = useState<Record<string, string>>({})
+  const [skillErrors, setSkillErrors] = useState<Record<string, string>>({})
+  const [expErrors, setExpErrors] = useState<Record<string, string>>({})
+  const [expWarnings, setExpWarnings] = useState<string[]>([])
+  const [projErrors, setProjErrors] = useState<Record<string, string>>({})
+  const [projWarnings, setProjWarnings] = useState<string[]>([])
+  const [certErrors, setCertErrors] = useState<Record<string, string>>({})
 
   // Initialize from user object
   useEffect(() => {
@@ -211,7 +227,34 @@ export default function ProfilePage() {
       certifications: certificationsList,
     })
 
-    setSavedMessage('Profile successfully updated and synchronized across all views!')
+    if (authMode === 'server') {
+      profileClient
+        .updateProfile({
+          name: name.trim(),
+          headline: headline.trim(),
+          careerGoal: careerGoal.trim(),
+          summary: summary.trim(),
+          location: location.trim(),
+          phone: phone.trim(),
+          linkedinUrl: linkedinUrl.trim(),
+          githubUrl: githubUrl.trim(),
+          portfolioUrl: portfolioUrl.trim(),
+        })
+        .then((res) => {
+          if (res.success) {
+            setSavedMessage('Profile successfully saved and synchronized to PostgreSQL database!')
+          } else if (res.isDatabaseUnavailable) {
+            setSavedMessage('Profile updated in session. (PostgreSQL is offline; changes will not persist after restart)')
+          } else {
+            setSavedMessage(`Failed to persist profile: ${res.error || 'Server validation error'}`)
+          }
+        })
+        .catch(() => {
+          setSavedMessage('Profile updated in session (network connection to server failed).')
+        })
+    } else {
+      setSavedMessage('Profile successfully updated in demo session!')
+    }
     setTimeout(() => setSavedMessage(null), 4000)
   }
 
@@ -225,6 +268,7 @@ export default function ProfilePage() {
     setEduGradYear('')
     setEduCurrent(false)
     setEduCoursework('')
+    setEduErrors({})
     setShowEduForm(true)
   }
 
@@ -237,14 +281,25 @@ export default function ProfilePage() {
     setEduGradYear(String(item.graduationYear))
     setEduCurrent(String(item.graduationYear) === 'Present')
     setEduCoursework(item.coursework || '')
+    setEduErrors({})
     setShowEduForm(true)
   }
 
   const saveEduEntry = () => {
-    if (!eduInstitution.trim() || !eduDegree.trim() || !eduField.trim() || !eduStartYear.trim()) {
-      alert('Please fill out institution, degree, field of study, and start year.')
+    const check = validateEducation({
+      institution: eduInstitution,
+      degree: eduDegree,
+      fieldOfStudy: eduField,
+      startYear: eduStartYear,
+      graduationYear: eduCurrent ? 'Present' : eduGradYear,
+      coursework: eduCoursework,
+    })
+
+    if (!check.valid) {
+      setEduErrors(check.errors)
       return
     }
+    setEduErrors({})
 
     const entry: EducationEntry = {
       id: editingEduId || `edu_${Date.now()}`,
@@ -263,26 +318,64 @@ export default function ProfilePage() {
     setEducationList(updated)
     setShowEduForm(false)
     updateProfile({ education: updated })
-    setSavedMessage('Education entry saved.')
-    setTimeout(() => setSavedMessage(null), 3000)
+
+    if (authMode === 'server') {
+      profileClient
+        .addEducation({
+          id: editingEduId || undefined,
+          institution: entry.institution,
+          degree: entry.degree,
+          fieldOfStudy: entry.fieldOfStudy,
+          startYear: parseInt(String(entry.startYear)) || 2020,
+          graduationYear: entry.graduationYear === 'Present' ? new Date().getFullYear() : (parseInt(String(entry.graduationYear)) || new Date().getFullYear()),
+          coursework: entry.coursework,
+        })
+        .then((res) => {
+          if (res.success) {
+            setSavedMessage('Education entry saved to database.')
+          } else if (res.isDatabaseUnavailable) {
+            setSavedMessage('Education saved in session (PostgreSQL is offline).')
+          } else {
+            setSavedMessage(`Failed to save education: ${res.error || 'Server error'}`)
+          }
+        })
+        .catch(() => setSavedMessage('Failed to save education: Network error.'))
+    } else {
+      setSavedMessage('Education entry saved.')
+    }
+    setTimeout(() => setSavedMessage(null), 3500)
   }
 
   const removeEduEntry = (id: string) => {
     const updated = educationList.filter((item) => item.id !== id)
     setEducationList(updated)
     updateProfile({ education: updated })
+
+    if (authMode === 'server') {
+      profileClient
+        .deleteEducation(id)
+        .then((res) => {
+          if (res.success) {
+            setSavedMessage('Education removed from database.')
+          } else if (res.isDatabaseUnavailable) {
+            setSavedMessage('Education removed in session (PostgreSQL offline).')
+          }
+        })
+        .catch((err) => console.error('Failed to delete education:', err))
+    } else {
+      setSavedMessage('Education removed.')
+    }
+    setTimeout(() => setSavedMessage(null), 3000)
   }
 
   // Skill Handlers
   const addSkillEntry = () => {
-    if (!skillName.trim()) return
-    const exists = skillsList.some(
-      (s) => s.name.toLowerCase() === skillName.trim().toLowerCase()
-    )
-    if (exists) {
-      alert(`Skill "${skillName.trim()}" already exists in your profile.`)
+    const check = validateSkill(skillName, skillsList)
+    if (!check.valid) {
+      setSkillErrors(check.errors)
       return
     }
+    setSkillErrors({})
 
     const newSkill: SkillEntry = {
       id: `sk_${Date.now()}`,
@@ -297,12 +390,34 @@ export default function ProfilePage() {
     setSkillName('')
     setShowSkillForm(false)
     updateProfile({ skillsList: updated })
-    setSavedMessage(`Added "${newSkill.name}" to skills.`)
+
+    if (authMode === 'server') {
+      profileClient
+        .addOrUpdateSkill({
+          name: newSkill.name,
+          category: newSkill.category,
+          proficiency: newSkill.proficiency,
+          yearsOfExperience: newSkill.yearsOfExperience,
+        })
+        .then((res) => {
+          if (res.success) {
+            setSavedMessage(`"${newSkill.name}" saved to database skills.`)
+          } else if (res.isDatabaseUnavailable) {
+            setSavedMessage(`"${newSkill.name}" saved in session (PostgreSQL is offline).`)
+          } else {
+            setSavedMessage(`Failed to persist skill: ${res.error || 'Server error'}`)
+          }
+        })
+        .catch(() => setSavedMessage(`"${newSkill.name}" saved in session (network error).`))
+    } else {
+      setSavedMessage(`Added "${newSkill.name}" to skills.`)
+    }
     setTimeout(() => setSavedMessage(null), 3000)
   }
 
   const addQuickSkill = (skill: (typeof POPULAR_TECH_SKILLS)[0]) => {
-    if (skillsList.some((s) => s.name.toLowerCase() === skill.name.toLowerCase())) return
+    const check = validateSkill(skill.name, skillsList)
+    if (!check.valid) return
     const newSkill: SkillEntry = {
       id: `sk_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
       name: skill.name,
@@ -313,12 +428,49 @@ export default function ProfilePage() {
     const updated = [...skillsList, newSkill]
     setSkillsList(updated)
     updateProfile({ skillsList: updated })
+
+    if (authMode === 'server') {
+      profileClient
+        .addOrUpdateSkill({
+          name: newSkill.name,
+          category: newSkill.category,
+          proficiency: newSkill.proficiency,
+          yearsOfExperience: newSkill.yearsOfExperience,
+        })
+        .then((res) => {
+          if (res.success) {
+            setSavedMessage(`"${newSkill.name}" added to database.`)
+          } else if (res.isDatabaseUnavailable) {
+            setSavedMessage(`"${newSkill.name}" saved in session (PostgreSQL offline).`)
+          }
+        })
+        .catch((err) => console.error('Failed to sync skill:', err))
+    } else {
+      setSavedMessage(`Added "${newSkill.name}" to skills.`)
+    }
+    setTimeout(() => setSavedMessage(null), 3000)
   }
 
   const removeSkillEntry = (id: string) => {
     const updated = skillsList.filter((s) => s.id !== id)
     setSkillsList(updated)
     updateProfile({ skillsList: updated })
+
+    if (authMode === 'server') {
+      profileClient
+        .deleteSkill(id)
+        .then((res) => {
+          if (res.success) {
+            setSavedMessage('Skill removed from database.')
+          } else if (res.isDatabaseUnavailable) {
+            setSavedMessage('Skill removed in session (PostgreSQL offline).')
+          }
+        })
+        .catch((err) => console.error('Failed to delete skill:', err))
+    } else {
+      setSavedMessage('Skill removed.')
+    }
+    setTimeout(() => setSavedMessage(null), 3000)
   }
 
   // Experience Handlers
@@ -332,6 +484,8 @@ export default function ProfilePage() {
     setExpIsCurrent(false)
     setExpDescription('')
     setExpTechnologies('')
+    setExpErrors({})
+    setExpWarnings([])
     setShowExpForm(true)
   }
 
@@ -345,14 +499,30 @@ export default function ProfilePage() {
     setExpIsCurrent(!!item.isCurrent)
     setExpDescription(item.description)
     setExpTechnologies((item.technologies || []).join(', '))
+    setExpErrors({})
+    setExpWarnings([])
     setShowExpForm(true)
   }
 
   const saveExpEntry = () => {
-    if (!expCompany.trim() || !expJobTitle.trim() || !expStartDate.trim() || !expDescription.trim()) {
-      alert('Please fill out company, job title, start date, and description.')
+    const techArray = expTechnologies.split(',').map((s) => s.trim()).filter(Boolean)
+    const check = validateExperience({
+      company: expCompany,
+      jobTitle: expJobTitle,
+      startDate: expStartDate,
+      endDate: expIsCurrent ? 'Present' : expEndDate,
+      isCurrent: expIsCurrent,
+      description: expDescription,
+      technologies: techArray,
+    })
+
+    if (!check.valid) {
+      setExpErrors(check.errors)
+      setExpWarnings(check.warnings)
       return
     }
+    setExpErrors({})
+    setExpWarnings(check.warnings)
 
     const entry: ExperienceEntry = {
       id: editingExpId || `exp_${Date.now()}`,
@@ -363,7 +533,7 @@ export default function ProfilePage() {
       endDate: expIsCurrent ? 'Present' : expEndDate.trim(),
       isCurrent: expIsCurrent,
       description: expDescription.trim(),
-      technologies: expTechnologies.split(',').map((s) => s.trim()).filter(Boolean),
+      technologies: techArray,
     }
 
     const updated = editingExpId
@@ -373,7 +543,33 @@ export default function ProfilePage() {
     setExperienceList(updated)
     setShowExpForm(false)
     updateProfile({ experience: updated })
-    setSavedMessage('Work experience saved.')
+
+    if (authMode === 'server') {
+      profileClient
+        .addExperience({
+          id: editingExpId || undefined,
+          company: entry.company,
+          jobTitle: entry.jobTitle,
+          employmentType: entry.employmentType,
+          startDate: entry.startDate,
+          endDate: entry.endDate,
+          isCurrent: entry.isCurrent,
+          description: entry.description,
+          technologies: entry.technologies,
+        })
+        .then((res) => {
+          if (res.success) {
+            setSavedMessage('Work experience saved to database.')
+          } else if (res.isDatabaseUnavailable) {
+            setSavedMessage('Work experience saved in session (PostgreSQL offline).')
+          } else {
+            setSavedMessage(`Failed to save experience: ${res.error || 'Server error'}`)
+          }
+        })
+        .catch(() => setSavedMessage('Experience saved in session (network error).'))
+    } else {
+      setSavedMessage('Work experience saved.')
+    }
     setTimeout(() => setSavedMessage(null), 3000)
   }
 
@@ -381,6 +577,22 @@ export default function ProfilePage() {
     const updated = experienceList.filter((item) => item.id !== id)
     setExperienceList(updated)
     updateProfile({ experience: updated })
+
+    if (authMode === 'server') {
+      profileClient
+        .deleteExperience(id)
+        .then((res) => {
+          if (res.success) {
+            setSavedMessage('Experience removed from database.')
+          } else if (res.isDatabaseUnavailable) {
+            setSavedMessage('Experience removed in session (PostgreSQL offline).')
+          }
+        })
+        .catch((err) => console.error('Failed to delete experience:', err))
+    } else {
+      setSavedMessage('Experience removed.')
+    }
+    setTimeout(() => setSavedMessage(null), 3000)
   }
 
   // Project Handlers
@@ -391,6 +603,8 @@ export default function ProfilePage() {
     setProjTech('')
     setProjUrl('')
     setProjGithubUrl('')
+    setProjErrors({})
+    setProjWarnings([])
     setShowProjForm(true)
   }
 
@@ -401,20 +615,34 @@ export default function ProfilePage() {
     setProjTech(item.technologies.join(', '))
     setProjUrl(item.projectUrl || '')
     setProjGithubUrl(item.githubUrl || '')
+    setProjErrors({})
+    setProjWarnings([])
     setShowProjForm(true)
   }
 
   const saveProjEntry = () => {
-    if (!projTitle.trim() || !projDescription.trim()) {
-      alert('Please provide project title and description.')
+    const techArray = projTech.split(',').map((t) => t.trim()).filter(Boolean)
+    const check = validateProject({
+      title: projTitle,
+      description: projDescription,
+      technologies: techArray,
+      projectUrl: projUrl,
+      githubUrl: projGithubUrl,
+    })
+
+    if (!check.valid) {
+      setProjErrors(check.errors)
+      setProjWarnings(check.warnings)
       return
     }
+    setProjErrors({})
+    setProjWarnings(check.warnings)
 
     const entry: ProjectEntry = {
       id: editingProjId || `proj_${Date.now()}`,
       title: projTitle.trim(),
       description: projDescription.trim(),
-      technologies: projTech.split(',').map((t) => t.trim()).filter(Boolean),
+      technologies: techArray,
       projectUrl: projUrl.trim() || undefined,
       githubUrl: projGithubUrl.trim() || undefined,
     }
@@ -426,7 +654,30 @@ export default function ProfilePage() {
     setProjectsList(updated)
     setShowProjForm(false)
     updateProfile({ projects: updated })
-    setSavedMessage('Project saved.')
+
+    if (authMode === 'server') {
+      profileClient
+        .addProject({
+          id: editingProjId || undefined,
+          title: entry.title,
+          description: entry.description,
+          technologies: entry.technologies,
+          projectUrl: entry.projectUrl,
+          githubUrl: entry.githubUrl,
+        })
+        .then((res) => {
+          if (res.success) {
+            setSavedMessage('Project saved to database.')
+          } else if (res.isDatabaseUnavailable) {
+            setSavedMessage('Project saved in session (PostgreSQL offline).')
+          } else {
+            setSavedMessage(`Failed to save project: ${res.error || 'Server error'}`)
+          }
+        })
+        .catch(() => setSavedMessage('Project saved in session (network error).'))
+    } else {
+      setSavedMessage('Project saved.')
+    }
     setTimeout(() => setSavedMessage(null), 3000)
   }
 
@@ -434,14 +685,47 @@ export default function ProfilePage() {
     const updated = projectsList.filter((p) => p.id !== id)
     setProjectsList(updated)
     updateProfile({ projects: updated })
+
+    if (authMode === 'server') {
+      profileClient
+        .deleteProject(id)
+        .then((res) => {
+          if (res.success) {
+            setSavedMessage('Project removed from database.')
+          } else if (res.isDatabaseUnavailable) {
+            setSavedMessage('Project removed in session (PostgreSQL offline).')
+          }
+        })
+        .catch((err) => console.error('Failed to delete project:', err))
+    } else {
+      setSavedMessage('Project removed.')
+    }
+    setTimeout(() => setSavedMessage(null), 3000)
   }
 
   // Certification Handlers
+  const openAddCert = () => {
+    setCertName('')
+    setCertIssuer('')
+    setCertIssueDate('')
+    setCertUrl('')
+    setCertErrors({})
+    setShowCertForm(true)
+  }
+
   const saveCertEntry = () => {
-    if (!certName.trim() || !certIssuer.trim()) {
-      alert('Please provide certification name and issuer.')
+    const check = validateCertification({
+      name: certName,
+      issuer: certIssuer,
+      credentialUrl: certUrl,
+      issueDate: certIssueDate,
+    })
+
+    if (!check.valid) {
+      setCertErrors(check.errors)
       return
     }
+    setCertErrors({})
 
     const entry: CertificationEntry = {
       id: `cert_${Date.now()}`,
@@ -459,7 +743,28 @@ export default function ProfilePage() {
     setCertUrl('')
     setShowCertForm(false)
     updateProfile({ certifications: updated })
-    setSavedMessage('Certification added.')
+
+    if (authMode === 'server') {
+      profileClient
+        .addCertification({
+          name: entry.name,
+          issuer: entry.issuer,
+          issueDate: entry.issueDate,
+          credentialUrl: entry.credentialUrl,
+        })
+        .then((res) => {
+          if (res.success) {
+            setSavedMessage('Certification added to database.')
+          } else if (res.isDatabaseUnavailable) {
+            setSavedMessage('Certification added in session (PostgreSQL offline).')
+          } else {
+            setSavedMessage(`Failed to save certification: ${res.error || 'Server error'}`)
+          }
+        })
+        .catch(() => setSavedMessage('Certification saved in session (network error).'))
+    } else {
+      setSavedMessage('Certification added.')
+    }
     setTimeout(() => setSavedMessage(null), 3000)
   }
 
@@ -467,6 +772,22 @@ export default function ProfilePage() {
     const updated = certificationsList.filter((c) => c.id !== id)
     setCertificationsList(updated)
     updateProfile({ certifications: updated })
+
+    if (authMode === 'server') {
+      profileClient
+        .deleteCertification(id)
+        .then((res) => {
+          if (res.success) {
+            setSavedMessage('Certification removed from database.')
+          } else if (res.isDatabaseUnavailable) {
+            setSavedMessage('Certification removed in session (PostgreSQL offline).')
+          }
+        })
+        .catch((err) => console.error('Failed to delete certification:', err))
+    } else {
+      setSavedMessage('Certification removed.')
+    }
+    setTimeout(() => setSavedMessage(null), 3000)
   }
 
   return (
@@ -515,6 +836,23 @@ export default function ProfilePage() {
                   {user?.onboarded && (
                     <Badge variant="secondary" className="bg-emerald-50 text-emerald-700 border-emerald-200">
                       Onboarded
+                    </Badge>
+                  )}
+                  {authMode === 'server' && (
+                    <Badge
+                      variant="secondary"
+                      className={
+                        serverStatus === 'database_unavailable'
+                          ? 'bg-amber-50 text-amber-700 border-amber-200'
+                          : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                      }
+                    >
+                      {serverStatus === 'database_unavailable' ? 'Session (DB Offline)' : 'PostgreSQL Synced'}
+                    </Badge>
+                  )}
+                  {authMode === 'demo' && (
+                    <Badge variant="secondary" className="bg-slate-100 text-slate-700 border-slate-200">
+                      Demo Mode
                     </Badge>
                   )}
                 </div>
@@ -596,6 +934,29 @@ export default function ProfilePage() {
               )
             })}
           </div>
+        </div>
+
+        {/* Profile Data Quality & Mining Health Status */}
+        <div className="mt-6">
+          <DataQualityCard
+            profile={{
+              name,
+              headline,
+              careerGoal,
+              summary,
+              location,
+              phone,
+              linkedinUrl,
+              githubUrl,
+              portfolioUrl,
+              education: educationList,
+              skillsList,
+              skills: skillsList.map((s) => s.name),
+              experience: experienceList,
+              projects: projectsList,
+              certifications: certificationsList,
+            }}
+          />
         </div>
 
         {/* TAB 1: PERSONAL INFORMATION */}
@@ -789,6 +1150,9 @@ export default function ProfilePage() {
                       placeholder="e.g. University of Toronto"
                       className="mt-1.5 bg-card"
                     />
+                    {eduErrors.institution && (
+                      <span className="text-xs text-rose-500 mt-1 block">{eduErrors.institution}</span>
+                    )}
                   </div>
                   <div>
                     <Label htmlFor="edu_deg">Degree *</Label>
@@ -799,6 +1163,9 @@ export default function ProfilePage() {
                       placeholder="e.g. Bachelor of Science"
                       className="mt-1.5 bg-card"
                     />
+                    {eduErrors.degree && (
+                      <span className="text-xs text-rose-500 mt-1 block">{eduErrors.degree}</span>
+                    )}
                   </div>
                   <div>
                     <Label htmlFor="edu_fld">Field of Study *</Label>
@@ -809,6 +1176,9 @@ export default function ProfilePage() {
                       placeholder="e.g. Computer Science & Statistics"
                       className="mt-1.5 bg-card"
                     />
+                    {eduErrors.fieldOfStudy && (
+                      <span className="text-xs text-rose-500 mt-1 block">{eduErrors.fieldOfStudy}</span>
+                    )}
                   </div>
                   <div>
                     <Label htmlFor="edu_sy">Start Year *</Label>
@@ -819,6 +1189,9 @@ export default function ProfilePage() {
                       placeholder="e.g. 2020"
                       className="mt-1.5 bg-card"
                     />
+                    {eduErrors.startYear && (
+                      <span className="text-xs text-rose-500 mt-1 block">{eduErrors.startYear}</span>
+                    )}
                   </div>
                   <div>
                     <Label htmlFor="edu_ey">Graduation Year</Label>
@@ -830,6 +1203,9 @@ export default function ProfilePage() {
                       placeholder="e.g. 2024"
                       className="mt-1.5 bg-card"
                     />
+                    {eduErrors.graduationYear && (
+                      <span className="text-xs text-rose-500 mt-1 block">{eduErrors.graduationYear}</span>
+                    )}
                   </div>
                 </div>
 
@@ -999,6 +1375,9 @@ export default function ProfilePage() {
                       placeholder="e.g. Kubernetes, React, GraphQL"
                       className="mt-1.5 bg-card"
                     />
+                    {skillErrors.name && (
+                      <span className="text-xs text-rose-500 mt-1 block">{skillErrors.name}</span>
+                    )}
                   </div>
                   <div>
                     <Label htmlFor="sk_cat">Category</Label>
@@ -1043,6 +1422,9 @@ export default function ProfilePage() {
                     onChange={(e) => setSkillYears(e.target.value)}
                     className="mt-1.5 bg-card"
                   />
+                  {skillErrors.yearsOfExperience && (
+                    <span className="text-xs text-rose-500 mt-1 block">{skillErrors.yearsOfExperience}</span>
+                  )}
                 </div>
 
                 <div className="mt-5 flex justify-end gap-2.5">
@@ -1156,6 +1538,9 @@ export default function ProfilePage() {
                         placeholder="e.g. Acme Tech"
                         className="mt-1.5 bg-card"
                       />
+                      {expErrors.company && (
+                        <span className="text-xs text-rose-500 mt-1 block">{expErrors.company}</span>
+                      )}
                     </div>
                     <div>
                       <Label htmlFor="exp_rl">Job Title / Role *</Label>
@@ -1166,6 +1551,9 @@ export default function ProfilePage() {
                         placeholder="e.g. Product Analyst"
                         className="mt-1.5 bg-card"
                       />
+                      {expErrors.jobTitle && (
+                        <span className="text-xs text-rose-500 mt-1 block">{expErrors.jobTitle}</span>
+                      )}
                     </div>
                     <div>
                       <Label htmlFor="exp_sd">Start Date *</Label>
@@ -1176,6 +1564,9 @@ export default function ProfilePage() {
                         placeholder="e.g. 2022"
                         className="mt-1.5 bg-card"
                       />
+                      {expErrors.startDate && (
+                        <span className="text-xs text-rose-500 mt-1 block">{expErrors.startDate}</span>
+                      )}
                     </div>
                     <div>
                       <Label htmlFor="exp_ed">End Date</Label>
@@ -1187,6 +1578,9 @@ export default function ProfilePage() {
                         placeholder="e.g. 2024"
                         className="mt-1.5 bg-card"
                       />
+                      {expErrors.endDate && (
+                        <span className="text-xs text-rose-500 mt-1 block">{expErrors.endDate}</span>
+                      )}
                     </div>
                   </div>
 
@@ -1213,6 +1607,9 @@ export default function ProfilePage() {
                       placeholder="Describe what you built, analyzed, or managed..."
                       className="mt-1.5 w-full rounded-2xl border border-input bg-card p-3 text-sm outline-none focus:ring-2 focus:ring-indigo-300"
                     />
+                    {expErrors.description && (
+                      <span className="text-xs text-rose-500 mt-1 block">{expErrors.description}</span>
+                    )}
                   </div>
 
                   <div className="mt-3">
@@ -1224,6 +1621,11 @@ export default function ProfilePage() {
                       placeholder="e.g. Python, SQL, Tableau, Metric Design"
                       className="mt-1.5 bg-card"
                     />
+                    {expWarnings.map((w, i) => (
+                      <span key={i} className="text-xs text-amber-600 dark:text-amber-400 mt-1 block">
+                        {w}
+                      </span>
+                    ))}
                   </div>
 
                   <div className="mt-5 flex justify-end gap-2.5">
@@ -1333,6 +1735,9 @@ export default function ProfilePage() {
                         placeholder="e.g. Customer Churn Graph Predictor"
                         className="mt-1.5 bg-card"
                       />
+                      {projErrors.title && (
+                        <span className="text-xs text-rose-500 mt-1 block">{projErrors.title}</span>
+                      )}
                     </div>
                     <div>
                       <Label htmlFor="pj_lv">Live Demo URL (Optional)</Label>
@@ -1343,6 +1748,9 @@ export default function ProfilePage() {
                         placeholder="https://..."
                         className="mt-1.5 bg-card"
                       />
+                      {projErrors.projectUrl && (
+                        <span className="text-xs text-rose-500 mt-1 block">{projErrors.projectUrl}</span>
+                      )}
                     </div>
                     <div>
                       <Label htmlFor="pj_gh">GitHub Repo URL (Optional)</Label>
@@ -1353,6 +1761,9 @@ export default function ProfilePage() {
                         placeholder="https://github.com/..."
                         className="mt-1.5 bg-card"
                       />
+                      {projErrors.githubUrl && (
+                        <span className="text-xs text-rose-500 mt-1 block">{projErrors.githubUrl}</span>
+                      )}
                     </div>
                   </div>
 
@@ -1366,6 +1777,9 @@ export default function ProfilePage() {
                       placeholder="Explain the problem solved, architecture, and impact..."
                       className="mt-1.5 w-full rounded-2xl border border-input bg-card p-3 text-sm outline-none focus:ring-2 focus:ring-indigo-300"
                     />
+                    {projErrors.description && (
+                      <span className="text-xs text-rose-500 mt-1 block">{projErrors.description}</span>
+                    )}
                   </div>
 
                   <div className="mt-3">
@@ -1377,6 +1791,11 @@ export default function ProfilePage() {
                       placeholder="e.g. Next.js, Three.js, Python, Scikit-learn"
                       className="mt-1.5 bg-card"
                     />
+                    {projWarnings.map((w, i) => (
+                      <span key={i} className="text-xs text-amber-600 dark:text-amber-400 mt-1 block">
+                        {w}
+                      </span>
+                    ))}
                   </div>
 
                   <div className="mt-5 flex justify-end gap-2.5">
@@ -1481,7 +1900,7 @@ export default function ProfilePage() {
                 </p>
               </div>
               <Button
-                onClick={() => setShowCertForm(true)}
+                onClick={openAddCert}
                 size="sm"
                 className="rounded-full bg-indigo-600 hover:bg-indigo-700 text-white"
               >
@@ -1503,6 +1922,9 @@ export default function ProfilePage() {
                       placeholder="e.g. AWS Certified Solutions Architect"
                       className="mt-1.5 bg-card"
                     />
+                    {certErrors.name && (
+                      <span className="text-xs text-rose-500 mt-1 block">{certErrors.name}</span>
+                    )}
                   </div>
                   <div>
                     <Label htmlFor="crt_iss">Issuing Body / Organization *</Label>
@@ -1513,6 +1935,9 @@ export default function ProfilePage() {
                       placeholder="e.g. Amazon Web Services"
                       className="mt-1.5 bg-card"
                     />
+                    {certErrors.issuer && (
+                      <span className="text-xs text-rose-500 mt-1 block">{certErrors.issuer}</span>
+                    )}
                   </div>
                   <div>
                     <Label htmlFor="crt_dt">Issue Date</Label>
@@ -1523,6 +1948,9 @@ export default function ProfilePage() {
                       placeholder="e.g. 2023-11"
                       className="mt-1.5 bg-card"
                     />
+                    {certErrors.issueDate && (
+                      <span className="text-xs text-rose-500 mt-1 block">{certErrors.issueDate}</span>
+                    )}
                   </div>
                   <div>
                     <Label htmlFor="crt_url">Credential Verification URL (Optional)</Label>
@@ -1533,6 +1961,9 @@ export default function ProfilePage() {
                       placeholder="https://..."
                       className="mt-1.5 bg-card"
                     />
+                    {certErrors.credentialUrl && (
+                      <span className="text-xs text-rose-500 mt-1 block">{certErrors.credentialUrl}</span>
+                    )}
                   </div>
                 </div>
 
