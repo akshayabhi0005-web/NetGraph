@@ -66,7 +66,7 @@ export default function SignupPage() {
     } else {
       if (result.isDatabaseUnavailable) {
         setErrorMessage(
-          'The backend database is currently unconfigured or offline. To explore NetGraph features immediately, please use "Demo Sign In" on the Login page.'
+          'The backend database service is currently unreachable or unconfigured. Please check environment configuration or try again shortly.'
         )
       } else {
         setErrorMessage(result.error || 'Failed to create account. Please try again.')
@@ -100,7 +100,7 @@ export default function SignupPage() {
           </div>
         </div>
         <p className="text-xs text-indigo-200">
-          Frontend demonstration · Local demo session mode
+          Enterprise network intelligence · Powered by PostgreSQL
         </p>
       </div>
 
@@ -175,7 +175,7 @@ export default function SignupPage() {
                 className="mt-1 accent-indigo-600"
               />
               <span>
-                I understand this is a local demo authentication mode with client-side session persistence.
+                I agree to the Terms of Service and Privacy Policy for network data analysis.
               </span>
             </label>
 

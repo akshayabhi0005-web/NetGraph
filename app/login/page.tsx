@@ -63,7 +63,7 @@ function LoginForm() {
     } else {
       if (result.isDatabaseUnavailable) {
         setErrorMessage(
-          'The backend database is currently unconfigured or offline. To test NetGraph immediately without PostgreSQL, click "Demo Sign In" above.'
+          'The backend database service is currently unreachable or unconfigured. Please check environment configuration or try again shortly.'
         )
       } else {
         setErrorMessage(result.error || 'Invalid email or password.')
@@ -72,6 +72,7 @@ function LoginForm() {
   }
 
   const handleDemoLogin = async () => {
+    if (process.env.NODE_ENV === 'production') return
     setErrorMessage('')
     setInfoMessage('')
     setIsSubmitting(true)
@@ -82,8 +83,10 @@ function LoginForm() {
 
   const handleForgotPassword = (e: React.MouseEvent) => {
     e.preventDefault()
-    setInfoMessage('In local demo mode, you can sign in directly using the 1-Click Demo button or create a new account.')
+    setInfoMessage('Password reset is managed securely by your system administrator or database provider.')
   }
+
+  const isDevelopment = process.env.NODE_ENV !== 'production'
 
   return (
     <div className="w-full max-w-md">
@@ -102,24 +105,26 @@ function LoginForm() {
       <h1 className="text-3xl font-semibold tracking-[-0.04em]">Welcome back</h1>
       <p className="mt-2 text-muted-foreground">Continue exploring your career potential.</p>
 
-      {/* 1-Click Instant Demo Login Banner */}
-      <div className="mt-6 flex items-center justify-between rounded-xl border border-indigo-100 bg-indigo-50/70 p-3.5 text-sm text-indigo-950">
-        <div className="flex items-center gap-2.5">
-          <Sparkles className="size-4 text-indigo-600 shrink-0" />
-          <span className="text-xs font-medium text-indigo-900">
-            Quick evaluation with demo profile
-          </span>
+      {/* 1-Click Instant Demo Login Banner (Development Evaluation Only) */}
+      {isDevelopment && (
+        <div className="mt-6 flex items-center justify-between rounded-xl border border-indigo-100 bg-indigo-50/70 p-3.5 text-sm text-indigo-950">
+          <div className="flex items-center gap-2.5">
+            <Sparkles className="size-4 text-indigo-600 shrink-0" />
+            <span className="text-xs font-medium text-indigo-900">
+              Quick evaluation with demo profile (dev only)
+            </span>
+          </div>
+          <Button
+            type="button"
+            size="sm"
+            onClick={handleDemoLogin}
+            disabled={isSubmitting}
+            className="rounded-full bg-indigo-600 text-xs font-semibold text-white hover:bg-indigo-700"
+          >
+            {isSubmitting ? <Loader2 className="size-3.5 animate-spin" /> : 'Demo Sign In'}
+          </Button>
         </div>
-        <Button
-          type="button"
-          size="sm"
-          onClick={handleDemoLogin}
-          disabled={isSubmitting}
-          className="rounded-full bg-indigo-600 text-xs font-semibold text-white hover:bg-indigo-700"
-        >
-          {isSubmitting ? <Loader2 className="size-3.5 animate-spin" /> : 'Demo Sign In'}
-        </Button>
-      </div>
+      )}
 
       <form className="mt-6 flex flex-col gap-5" onSubmit={handleSubmit}>
         {errorMessage && (
@@ -227,7 +232,7 @@ export default function LoginPage() {
           </p>
         </div>
         <p className="text-xs text-muted-foreground">
-          Frontend demonstration · Local demo session mode
+          Secure cloud analytics · Powered by Neon PostgreSQL
         </p>
       </div>
 

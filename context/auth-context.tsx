@@ -142,6 +142,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
    * Isolated client-side demo login for local evaluation
    */
   const loginDemo = async () => {
+    if (process.env.NODE_ENV === 'production') {
+      console.warn('Demo authentication is disabled in production environments.')
+      return
+    }
     setIsLoading(true)
     const result = await authLoginDemoUser()
     setUser(result.user)
